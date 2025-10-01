@@ -1,7 +1,7 @@
 from google.oauth2.service_account import Credentials
 from functools import lru_cache
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload 
+from googleapiclient.http import MediaIoBaseUpload  # ✅ Ubah dari MediaFileUpload
 import gspread, streamlit as st
 import io
 
@@ -43,8 +43,8 @@ def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
         q=query,
         spaces='drive',
         fields='files(id, name)',
-        supportsAllDrives=True,  # ✅ Tambahkan ini
-        includeItemsFromAllDrives=True  # ✅ Tambahkan ini
+        supportsAllDrives=True,  # ✅ Support Shared Drive
+        includeItemsFromAllDrives=True  # ✅ Include items dari Shared Drive
     ).execute()
     
     items = results.get('files', [])
@@ -62,7 +62,7 @@ def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
     folder = service.files().create(
         body=file_metadata,
         fields='id',
-        supportsAllDrives=True  # ✅ Tambahkan ini
+        supportsAllDrives=True  # ✅ Support Shared Drive
     ).execute()
     
     return folder.get('id')
@@ -79,21 +79,19 @@ def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type:
         'parents': [folder_id]
     }
     
-    # Create file in memory
-    from googleapiclient.http import MediaIoBaseUpload
+    # Create file in memory menggunakan MediaIoBaseUpload (bukan MediaFileUpload)
     fh = io.BytesIO(file_content)
-    media = MediaIoBaseUpload(
+    media = MediaIoBaseUpload(  # ✅ Ubah dari MediaFileUpload
         fh,
         mimetype=mime_type,
         resumable=True
     )
     
-    # Upload file
     file = service.files().create(
         body=file_metadata,
         media_body=media,
         fields='id, name, webViewLink',
-        supportsAllDrives=True  # ✅ Tambahkan ini untuk Shared Drive
+        supportsAllDrives=True  # ✅ Support Shared Drive
     ).execute()
     
     return file
