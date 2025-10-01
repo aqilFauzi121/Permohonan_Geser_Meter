@@ -165,7 +165,8 @@ if idpel_selected:
         tanggal_eksekusi = st.date_input(
             "📅 Tanggal Eksekusi:",
             value=date.today(),
-            key="tanggal_eksekusi_input"
+            key="tanggal_eksekusi_input",
+            format="DD/MM/YYYY"
         )
         
         uploaded_files = st.file_uploader(
