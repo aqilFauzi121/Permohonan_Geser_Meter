@@ -257,5 +257,52 @@ if idpel_selected:
                     import traceback
                     st.error(traceback.format_exc())
 
+# === DEBUG: Test Akses Folder ===
+st.markdown("---")
+st.subheader("🔧 Debug Mode")
+
+if st.button("🧪 Test Akses Folder Drive"):
+    try:
+        from auth import get_drive_service
+        service = get_drive_service()
+        
+        # Test 1: Cek folder eksekusi accessible
+        st.write(f"**Testing Folder ID:** `{DRIVE_FOLDER_EKSEKUSI}`")
+        
+        folder = service.files().get(
+            fileId=DRIVE_FOLDER_EKSEKUSI,
+            fields='id, name, owners, capabilities',
+            supportsAllDrives=True
+        ).execute()
+        
+        st.success(f"✅ Folder ditemukan: **{folder.get('name')}**")
+        st.json({
+            "Folder ID": folder.get('id'),
+            "Folder Name": folder.get('name'),
+            "Can Edit": folder.get('capabilities', {}).get('canEdit', False),
+            "Can Add Children": folder.get('capabilities', {}).get('canAddChildren', False)
+        })
+        
+        # Test 2: List isi folder
+        results = service.files().list(
+            q=f"'{DRIVE_FOLDER_EKSEKUSI}' in parents and trashed=false",
+            fields='files(id, name, mimeType)',
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
+        ).execute()
+        
+        files = results.get('files', [])
+        st.info(f"📁 Jumlah item di folder: **{len(files)}**")
+        
+        if files:
+            st.write("**Isi folder:**")
+            for f in files[:5]:  # Show max 5
+                st.write(f"- {f['name']} (`{f['mimeType']}`)")
+        
+    except Exception as e:
+        st.error(f"❌ Error: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
+
 else:
     st.info("💡 Silakan pilih ID Pelanggan untuk melanjutkan")
