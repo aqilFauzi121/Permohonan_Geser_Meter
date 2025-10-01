@@ -22,33 +22,38 @@ def get_gspread_client():
     creds = SACredentials.from_service_account_info(sa_info, scopes=SCOPES)
     return gspread.authorize(creds)
 
-@lru_cache(maxsize=1)
 def get_drive_service():
-    """OAuth credentials untuk Drive"""
+    """OAuth credentials untuk Drive dengan auto-refresh"""
     
-    # Cek apakah ada OAuth token di secrets
-    if "oauth_token" in st.secrets:
-        token_data = dict(st.secrets["oauth_token"])
-        
-        creds = Credentials(
-            token=token_data.get("access_token"),
-            refresh_token=token_data.get("refresh_token"),
-            token_uri="https://oauth2.googleapis.com/token",
-            client_id=st.secrets["oauth"]["client_id"],
-            client_secret=st.secrets["oauth"]["client_secret"],
-            scopes=SCOPES
-        )
-        
-        # Auto refresh jika expired
-        from google.auth.transport.requests import Request
+    # Cache di session state
+    if 'drive_service' in st.session_state:
+        return st.session_state['drive_service']
+    
+    if "oauth_token" not in st.secrets:
+        st.error("OAuth token belum di-setup di secrets!")
+        st.stop()
+    
+    token_data = dict(st.secrets["oauth_token"])
+    
+    creds = Credentials(
+        token=token_data.get("access_token"),
+        refresh_token=token_data.get("refresh_token"),
+        token_uri=token_data.get("token_uri"),
+        client_id=token_data.get("client_id"),
+        client_secret=token_data.get("client_secret"),
+        scopes=SCOPES
+    )
+    
+    # Auto refresh jika expired
+    from google.auth.transport.requests import Request
+    if not creds.valid:
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
-        
-        return build('drive', 'v3', credentials=creds)
     
-    else:
-        st.error("OAuth token belum di-setup. Lihat instruksi di bawah.")
-        st.stop()
+    service = build('drive', 'v3', credentials=creds)
+    st.session_state['drive_service'] = service
+    
+    return service
 
 def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
     service = get_drive_service()
@@ -99,3 +104,4 @@ def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type:
     ).execute()
     
     return file
+
