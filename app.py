@@ -1,5 +1,14 @@
 # app.py
 import streamlit as st
+
+# === KONFIGURASI PAGE (HARUS DI PALING ATAS) ===
+st.set_page_config(
+    page_title="Permohonan Geser Meter",
+    page_icon="assets/logo_pln.png",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 import runpy
 import os
 from PIL import Image
