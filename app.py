@@ -123,8 +123,8 @@ st.sidebar.markdown(
 )
 
 pages = {
-    "Data Pelanggan": os.path.join(SIDEBAR_DIR, "Data_pelanggan.py"),
     "Proses": os.path.join(SIDEBAR_DIR, "Proses.py"),
+    "Data Pelanggan": os.path.join(SIDEBAR_DIR, "Data_pelanggan.py"),
     "Eksekusi": os.path.join(SIDEBAR_DIR, "Eksekusi.py"),
 }
 
@@ -172,4 +172,5 @@ else:
         "<p style='color:#ffffff; font-size:11px;'>Developed by Universitas Brawijaya</p>",
         unsafe_allow_html=True
     )
+
 
