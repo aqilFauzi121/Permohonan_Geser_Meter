@@ -121,15 +121,15 @@ st.sidebar.markdown(
 )
 
 pages = {
-    "Data Pelanggan": "Data_pelanggan",
     "Proses": "Proses",
     "Eksekusi": "Eksekusi",
+    "Data Pelanggan": "Data_pelanggan",
 }
 
 choice = st.sidebar.selectbox(
     "Pilih Menu", 
     list(pages.keys()),
-    index=1,
+    index=0,
     label_visibility="collapsed"
 )
 
@@ -189,3 +189,4 @@ else:
         "<p style='color:#ffffff; font-size:11px;'>Developed by Universitas Brawijaya</p>",
         unsafe_allow_html=True
     )
+
