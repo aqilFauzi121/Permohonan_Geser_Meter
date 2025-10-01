@@ -1,7 +1,7 @@
 # app.py
 import streamlit as st
 
-# === KONFIGURASI PAGE (HARUS DI PALING ATAS) ===
+# === KONFIGURASI PAGE ===
 st.set_page_config(
     page_title="Permohonan Geser Meter",
     page_icon="assets/logo_pln.png",
@@ -172,3 +172,4 @@ else:
         "<p style='color:#ffffff; font-size:11px;'>Developed by Universitas Brawijaya</p>",
         unsafe_allow_html=True
     )
+
