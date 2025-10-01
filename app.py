@@ -131,7 +131,7 @@ pages = {
 choice = st.sidebar.selectbox(
     "Pilih Menu", 
     list(pages.keys()),
-    index=1,
+    index=0,
     label_visibility="collapsed"
 )
 
@@ -172,5 +172,6 @@ else:
         "<p style='color:#ffffff; font-size:11px;'>Developed by Universitas Brawijaya</p>",
         unsafe_allow_html=True
     )
+
 
 
