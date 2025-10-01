@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 
 # === KONFIGURASI PAGE ===
@@ -9,7 +8,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-import runpy
 import os
 from PIL import Image
 from datetime import datetime
@@ -123,22 +121,41 @@ st.sidebar.markdown(
 )
 
 pages = {
-    "Proses": os.path.join(SIDEBAR_DIR, "Proses.py"),
-    "Data Pelanggan": os.path.join(SIDEBAR_DIR, "Data_pelanggan.py"),
-    "Eksekusi": os.path.join(SIDEBAR_DIR, "Eksekusi.py"),
+    "Data Pelanggan": "Data_pelanggan",
+    "Proses": "Proses",
+    "Eksekusi": "Eksekusi",
 }
 
 choice = st.sidebar.selectbox(
     "Pilih Menu", 
     list(pages.keys()),
-    index=0,
+    index=1,
     label_visibility="collapsed"
 )
 
-file_path = pages.get(choice)
+# === Load Selected Page ===
+page_module = pages.get(choice)
 
-if file_path and os.path.exists(file_path):
-    runpy.run_path(file_path, run_name="__main__")
+if page_module:
+    try:
+        # Method 1: Import dinamis (lebih aman)
+        import importlib.util
+        import sys
+        
+        module_path = os.path.join(SIDEBAR_DIR, f"{page_module}.py")
+        
+        if os.path.exists(module_path):
+            spec = importlib.util.spec_from_file_location(page_module, module_path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[page_module] = module
+            spec.loader.exec_module(module)
+        else:
+            st.error(f"File {page_module}.py tidak ditemukan di folder sidebar/")
+            
+    except Exception as e:
+        st.error(f"Gagal memuat halaman: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
 else:
     st.error("Halaman tidak ditemukan.")
 
@@ -172,6 +189,3 @@ else:
         "<p style='color:#ffffff; font-size:11px;'>Developed by Universitas Brawijaya</p>",
         unsafe_allow_html=True
     )
-
-
-
