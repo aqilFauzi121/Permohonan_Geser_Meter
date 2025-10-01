@@ -1,12 +1,15 @@
 from google.oauth2.service_account import Credentials
 from functools import lru_cache
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload  # ✅ Ubah dari MediaFileUpload
-import gspread, streamlit as st
+from googleapiclient.http import MediaIoBaseUpload
+import gspread
+import streamlit as st
 import io
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
-          "https://www.googleapis.com/auth/drive"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
 @lru_cache(maxsize=1)
 def get_gspread_client():
@@ -43,8 +46,8 @@ def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
         q=query,
         spaces='drive',
         fields='files(id, name)',
-        supportsAllDrives=True,  # ✅ Support Shared Drive
-        includeItemsFromAllDrives=True  # ✅ Include items dari Shared Drive
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
     ).execute()
     
     items = results.get('files', [])
@@ -62,14 +65,14 @@ def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
     folder = service.files().create(
         body=file_metadata,
         fields='id',
-        supportsAllDrives=True  # ✅ Support Shared Drive
+        supportsAllDrives=True
     ).execute()
     
     return folder.get('id')
 
 def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type: str) -> dict:
     """
-    Upload file ke Google Drive
+    Upload file ke Google Drive dengan method yang benar untuk personal account
     Returns: {'id': file_id, 'name': filename, 'webViewLink': url}
     """
     service = get_drive_service()
@@ -79,19 +82,20 @@ def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type:
         'parents': [folder_id]
     }
     
-    # Create file in memory menggunakan MediaIoBaseUpload (bukan MediaFileUpload)
+    # Create file in memory
     fh = io.BytesIO(file_content)
-    media = MediaIoBaseUpload(  # ✅ Ubah dari MediaFileUpload
+    media = MediaIoBaseUpload(
         fh,
         mimetype=mime_type,
         resumable=True
     )
     
+    # Upload file
     file = service.files().create(
         body=file_metadata,
         media_body=media,
         fields='id, name, webViewLink',
-        supportsAllDrives=True  # ✅ Support Shared Drive
+        supportsAllDrives=True
     ).execute()
     
     return file
