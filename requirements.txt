@@ -1,0 +1,18 @@
+# Core app
+streamlit>=1.33,<2
+pandas>=2.0
+altair>=5.0
+pillow>=10.0
+
+# Google Sheets access
+gspread>=6.0
+google-auth>=2.20
+google-auth-oauthlib>=1.0
+google-auth-httplib2>=0.1.0
+google-api-python-client>=2.100
+
+# Optional but recommended for reliable timezone data across platforms
+tzdata>=2024.1
+
+# PDF export (you have a script that uses ReportLab)
+reportlab>=4.0
