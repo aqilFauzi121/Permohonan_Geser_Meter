@@ -35,7 +35,7 @@ def get_drive_service():
 
 def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
     """
-    Cari atau buat folder di Google Drive
+    Cari atau buat folder di Google Drive + SET PERMISSION untuk Service Account
     Returns: folder_id
     """
     service = get_drive_service()
@@ -72,37 +72,40 @@ def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
         supportsAllDrives=True
     ).execute()
     
-    return folder.get('id')
+    folder_id = folder.get('id')
+    
+    # CRITICAL: Set permission untuk Service Account agar bisa menulis
+    try:
+        # Ambil email Service Account dari credentials
+        sa_info = dict(st.secrets["service_account"])
+        sa_email = sa_info.get("client_email")
+        
+        if sa_email:
+            permission = {
+                'type': 'user',
+                'role': 'writer',  # atau 'writer' jika tidak perlu full control
+                'emailAddress': sa_email
+            }
+            
+            service.permissions().create(
+                fileId=folder_id,
+                body=permission,
+                fields='id',
+                supportsAllDrives=True
+            ).execute()
+    except Exception as e:
+        # Log error tapi jangan stop proses
+        import traceback
+        st.warning(f"Warning: Gagal set permission otomatis: {e}")
+    
+    return folder_id
+
 
 def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type: str) -> dict:
     """
-    Upload file ke Google Drive - Fixed untuk Service Account
-    
-    Strategy: Upload langsung dengan parent folder yang sudah di-share
+    Upload file ke Google Drive - Simplified version
     """
     service = get_drive_service()
-    
-    # Validasi: Cek apakah Service Account punya akses ke folder
-    try:
-        folder_check = service.files().get(
-            fileId=folder_id,
-            fields='capabilities',
-            supportsAllDrives=True
-        ).execute()
-        
-        capabilities = folder_check.get('capabilities', {})
-        if not capabilities.get('canAddChildren', False):
-            raise PermissionError(
-                f"Service Account tidak punya permission 'Editor' di folder {folder_id}. "
-                "Pastikan folder sudah di-share dengan email Service Account sebagai Editor."
-            )
-    except Exception as e:
-        if "403" in str(e):
-            raise PermissionError(
-                f"Folder {folder_id} tidak dapat diakses. "
-                "Pastikan folder sudah di-share dengan Service Account."
-            )
-        raise
     
     file_metadata = {
         'name': filename,
@@ -113,16 +116,23 @@ def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type:
     media = MediaIoBaseUpload(
         fh,
         mimetype=mime_type,
-        resumable=True,
-        chunksize=1024*1024  # 1MB chunks
+        resumable=False  # Ubah jadi False untuk file kecil
     )
     
-    # Upload dengan parameter yang benar
-    file = service.files().create(
-        body=file_metadata,
-        media_body=media,
-        fields='id, name, webViewLink',
-        supportsAllDrives=True
-    ).execute()
-    
-    return file
+    try:
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, name, webViewLink',
+            supportsAllDrives=True
+        ).execute()
+        
+        return file
+    except Exception as e:
+        # Jika gagal, coba dengan strategy lain (upload ke parent langsung)
+        if "403" in str(e) or "quota" in str(e).lower():
+            raise PermissionError(
+                f"Service Account tidak punya permission menulis ke folder {folder_id}. "
+                f"Error: {str(e)}"
+            )
+        raise
