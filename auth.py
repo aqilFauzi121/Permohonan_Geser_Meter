@@ -1,7 +1,7 @@
 from google.oauth2.service_account import Credentials
 from functools import lru_cache
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaIoBaseUpload 
 import gspread, streamlit as st
 import io
 
@@ -76,9 +76,13 @@ def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type:
         'parents': [folder_id]
     }
     
-    # Create file in memory
+    # Create file in memory dengan benar
     fh = io.BytesIO(file_content)
-    media = MediaFileUpload(
+    
+    # Gunakan MediaIoBaseUpload untuk BytesIO object
+    from googleapiclient.http import MediaIoBaseUpload
+    
+    media = MediaIoBaseUpload(
         fh,
         mimetype=mime_type,
         resumable=True
