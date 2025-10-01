@@ -76,12 +76,33 @@ def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
 
 def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type: str) -> dict:
     """
-    Upload file ke Google Drive - Optimized untuk personal account
+    Upload file ke Google Drive - Fixed untuk Service Account
     
-    Strategy: Upload langsung dengan specifying parents
-    Tidak perlu move karena folder sudah di-share dengan Editor permission
+    Strategy: Upload langsung dengan parent folder yang sudah di-share
     """
     service = get_drive_service()
+    
+    # Validasi: Cek apakah Service Account punya akses ke folder
+    try:
+        folder_check = service.files().get(
+            fileId=folder_id,
+            fields='capabilities',
+            supportsAllDrives=True
+        ).execute()
+        
+        capabilities = folder_check.get('capabilities', {})
+        if not capabilities.get('canAddChildren', False):
+            raise PermissionError(
+                f"Service Account tidak punya permission 'Editor' di folder {folder_id}. "
+                "Pastikan folder sudah di-share dengan email Service Account sebagai Editor."
+            )
+    except Exception as e:
+        if "403" in str(e):
+            raise PermissionError(
+                f"Folder {folder_id} tidak dapat diakses. "
+                "Pastikan folder sudah di-share dengan Service Account."
+            )
+        raise
     
     file_metadata = {
         'name': filename,
@@ -92,16 +113,16 @@ def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type:
     media = MediaIoBaseUpload(
         fh,
         mimetype=mime_type,
-        resumable=True
+        resumable=True,
+        chunksize=1024*1024  # 1MB chunks
     )
     
-    # Upload dengan parameter tambahan untuk bypass quota issue
+    # Upload dengan parameter yang benar
     file = service.files().create(
         body=file_metadata,
         media_body=media,
         fields='id, name, webViewLink',
-        supportsAllDrives=True,
-        enforceSingleParent=True  # Pastikan file langsung masuk ke parent folder
+        supportsAllDrives=True
     ).execute()
     
     return file
