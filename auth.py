@@ -42,7 +42,9 @@ def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
     results = service.files().list(
         q=query,
         spaces='drive',
-        fields='files(id, name)'
+        fields='files(id, name)',
+        supportsAllDrives=True,  # ✅ Tambahkan ini
+        includeItemsFromAllDrives=True  # ✅ Tambahkan ini
     ).execute()
     
     items = results.get('files', [])
@@ -59,7 +61,8 @@ def get_or_create_folder(parent_folder_id: str, folder_name: str) -> str:
     
     folder = service.files().create(
         body=file_metadata,
-        fields='id'
+        fields='id',
+        supportsAllDrives=True  # ✅ Tambahkan ini
     ).execute()
     
     return folder.get('id')
@@ -76,22 +79,21 @@ def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type:
         'parents': [folder_id]
     }
     
-    # Create file in memory dengan benar
-    fh = io.BytesIO(file_content)
-    
-    # Gunakan MediaIoBaseUpload untuk BytesIO object
+    # Create file in memory
     from googleapiclient.http import MediaIoBaseUpload
-    
+    fh = io.BytesIO(file_content)
     media = MediaIoBaseUpload(
         fh,
         mimetype=mime_type,
         resumable=True
     )
     
+    # Upload file
     file = service.files().create(
         body=file_metadata,
         media_body=media,
-        fields='id, name, webViewLink'
+        fields='id, name, webViewLink',
+        supportsAllDrives=True  # ✅ Tambahkan ini untuk Shared Drive
     ).execute()
     
     return file
