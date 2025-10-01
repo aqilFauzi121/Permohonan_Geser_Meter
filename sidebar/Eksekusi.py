@@ -36,9 +36,6 @@ def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
     return pd.DataFrame(data).fillna("")
 
 def update_tanggal_eksekusi(spreadsheet_id: str, gid: str, idpel: str, tanggal: str) -> dict:
-    """
-    Update kolom TanggalEksekusi untuk IDPEL tertentu (row terakhir)
-    """
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(spreadsheet_id)
@@ -54,7 +51,6 @@ def update_tanggal_eksekusi(spreadsheet_id: str, gid: str, idpel: str, tanggal: 
         
         header = target_ws.row_values(1)
         
-        # Cari kolom TanggalEksekusi
         eksekusi_col = None
         for idx, col_name in enumerate(header):
             if "tanggaleksekusi" in str(col_name).strip().lower().replace(" ", ""):
@@ -64,7 +60,6 @@ def update_tanggal_eksekusi(spreadsheet_id: str, gid: str, idpel: str, tanggal: 
         if eksekusi_col is None:
             return {"success": False, "message": "Kolom TanggalEksekusi tidak ditemukan"}
         
-        # Cari kolom ID Pelanggan
         id_col = None
         for idx, col_name in enumerate(header):
             if "id pelanggan" in str(col_name).strip().lower():
@@ -74,7 +69,6 @@ def update_tanggal_eksekusi(spreadsheet_id: str, gid: str, idpel: str, tanggal: 
         if id_col is None:
             return {"success": False, "message": "Kolom ID Pelanggan tidak ditemukan"}
         
-        # Cari row terakhir yang match
         id_values = target_ws.col_values(id_col)
         matched_row = None
         
@@ -86,7 +80,6 @@ def update_tanggal_eksekusi(spreadsheet_id: str, gid: str, idpel: str, tanggal: 
         if matched_row is None:
             return {"success": False, "message": f"ID Pelanggan {idpel} tidak ditemukan"}
         
-        # Update cell
         target_ws.update_cell(matched_row, eksekusi_col, tanggal)
         
         return {"success": True, "message": f"Berhasil update row {matched_row}"}
@@ -99,7 +92,6 @@ st.title("📸 Upload Dokumentasi Eksekusi")
 
 df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
 
-# Filter & Pilih Pelanggan
 st.subheader("🔎 Pilih Pelanggan")
 
 col_filter1, col_filter2 = st.columns(2)
@@ -118,7 +110,6 @@ with col_filter2:
         key="search_nama_eksekusi"
     )
 
-# Apply filter
 df_filtered = df_sheets.copy()
 
 if search_id.strip():
@@ -132,7 +123,6 @@ if search_nama.strip():
             df_filtered["Nama"].astype(str).str.contains(search_nama.strip(), case=False, na=False)
         ]
 
-# Dropdown
 filtered_options = ["- Pilih ID Pelanggan -"]
 if not df_filtered.empty:
     for _, row in df_filtered.iterrows():
@@ -147,7 +137,6 @@ pilihan = st.selectbox(
     key="select_idpel_eksekusi"
 )
 
-# Extract ID
 def extract_id(opt: str) -> str:
     if not opt or opt == "- Pilih ID Pelanggan -":
         return ""
@@ -160,7 +149,6 @@ idpel_selected = extract_id(pilihan)
 if idpel_selected:
     st.success(f"✅ Terpilih: {pilihan}")
     
-    # Data pelanggan
     df_selected = df_sheets[df_sheets["ID Pelanggan"].astype(str) == idpel_selected]
     if not df_selected.empty:
         nama = str(df_selected.iloc[0].get("Nama", "-"))
@@ -171,18 +159,15 @@ if idpel_selected:
     
     st.markdown("---")
     
-    # Form Eksekusi
     st.subheader("📋 Input Data Eksekusi")
     
     with st.form("form_eksekusi"):
-        # Tanggal Eksekusi
         tanggal_eksekusi = st.date_input(
             "📅 Tanggal Eksekusi:",
             value=date.today(),
             key="tanggal_eksekusi_input"
         )
         
-        # Upload Foto
         uploaded_files = st.file_uploader(
             "📸 Upload Foto Dokumentasi (JPG/PNG, minimal 1 foto):",
             type=["jpg", "jpeg", "png"],
@@ -190,7 +175,6 @@ if idpel_selected:
             key="upload_foto_eksekusi"
         )
         
-        # Validasi preview
         if uploaded_files:
             st.write(f"**Jumlah foto:** {len(uploaded_files)}")
             cols = st.columns(min(len(uploaded_files), 4))
@@ -200,29 +184,22 @@ if idpel_selected:
         
         submitted = st.form_submit_button("📤 Submit Data Eksekusi")
     
-    # Proses submit
     if submitted:
-        # Validasi
         if not uploaded_files:
             st.error("⚠️ Minimal 1 foto harus diupload!")
         else:
             with st.spinner("Mengupload foto ke Google Drive dan update data..."):
                 try:
-                    # Format tanggal dd/mm/yyyy
                     tanggal_str = tanggal_eksekusi.strftime("%d/%m/%Y")
                     
-                    # 1. Buat/ambil subfolder untuk IDPEL
                     subfolder_id = get_or_create_folder(DRIVE_FOLDER_EKSEKUSI, idpel_selected)
                     
-                    # 2. Upload semua foto
                     uploaded_links = []
                     for file in uploaded_files:
-                        # Generate filename dengan timestamp
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                         ext = file.name.split(".")[-1]
                         filename = f"{idpel_selected}_{timestamp}.{ext}"
                         
-                        # Upload
                         result = upload_file_to_drive(
                             file_content=file.read(),
                             filename=filename,
@@ -235,7 +212,6 @@ if idpel_selected:
                             "link": result.get("webViewLink", "")
                         })
                     
-                    # 3. Update TanggalEksekusi di Google Sheets
                     update_result = update_tanggal_eksekusi(
                         SPREADSHEET_ID,
                         GID,
@@ -248,7 +224,6 @@ if idpel_selected:
                         st.info(f"📅 Tanggal Eksekusi: {tanggal_str}")
                         st.info(f"📁 Foto tersimpan di: Foto Eksekusi/{idpel_selected}/")
                         
-                        # Detail foto yang diupload
                         with st.expander("📋 Detail Foto yang Diupload"):
                             for item in uploaded_links:
                                 st.write(f"- [{item['name']}]({item['link']})")
@@ -262,7 +237,6 @@ if idpel_selected:
                     import traceback
                     st.error(traceback.format_exc())
 
-# === DEBUG MODE ===
 st.markdown("---")
 st.subheader("🔧 Debug Mode")
 
@@ -298,7 +272,6 @@ with col_debug2:
         try:
             from auth import upload_file_to_drive
             
-            # Create dummy file
             dummy_content = b"Test upload file dari Streamlit"
             filename = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
             
@@ -319,6 +292,3 @@ with col_debug2:
             st.error(f"❌ Upload gagal: {str(e)}")
             import traceback
             st.code(traceback.format_exc())
-
-else:
-    st.info("💡 Silakan pilih ID Pelanggan untuk melanjutkan")
