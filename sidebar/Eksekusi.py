@@ -192,13 +192,16 @@ if idpel_selected:
                 try:
                     tanggal_str = tanggal_eksekusi.strftime("%d/%m/%Y")
                     
+                    # Format: DDMMYYYY
+                    tanggal_prefix = tanggal_eksekusi.strftime("%d%m%Y")
+                    
                     subfolder_id = get_or_create_folder(DRIVE_FOLDER_EKSEKUSI, idpel_selected)
                     
                     uploaded_links = []
-                    for file in uploaded_files:
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    for idx, file in enumerate(uploaded_files, 1):
                         ext = file.name.split(".")[-1]
-                        filename = f"{idpel_selected}_{timestamp}.{ext}"
+                        # Format: IDPEL_YYYYMMDD_NAMA_01.ext
+                        filename = f"{idpel_selected}_{tanggal_prefix}_{nama.replace(' ', '_')}_{idx:02d}.{ext}"
                         
                         result = upload_file_to_drive(
                             file_content=file.read(),
@@ -236,59 +239,3 @@ if idpel_selected:
                     st.error(f"❌ Terjadi kesalahan: {str(e)}")
                     import traceback
                     st.error(traceback.format_exc())
-
-st.markdown("---")
-st.subheader("🔧 Debug Mode")
-
-col_debug1, col_debug2 = st.columns(2)
-
-with col_debug1:
-    if st.button("🧪 Test Akses Folder Drive"):
-        st.write(f"**Testing Folder ID:** `{DRIVE_FOLDER_EKSEKUSI}`")
-        try:
-            from auth import get_drive_service
-            service = get_drive_service()
-            
-            folder = service.files().get(
-                fileId=DRIVE_FOLDER_EKSEKUSI,
-                fields='id, name, capabilities',
-                supportsAllDrives=True
-            ).execute()
-            
-            st.success(f"✅ Folder ditemukan: **{folder.get('name')}**")
-            
-            capabilities = folder.get('capabilities', {})
-            st.json({
-                "Can Edit": capabilities.get('canEdit', False),
-                "Can Add Children": capabilities.get('canAddChildren', False),
-            })
-            
-        except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
-            st.info("Pastikan Folder ID benar dan sudah di-share ke Service Account")
-
-with col_debug2:
-    if st.button("📤 Test Upload Dummy File"):
-        try:
-            from auth import upload_file_to_drive
-            
-            dummy_content = b"Test upload file dari Streamlit"
-            filename = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-            
-            st.write(f"Uploading ke folder: `{DRIVE_FOLDER_EKSEKUSI}`")
-            
-            result = upload_file_to_drive(
-                file_content=dummy_content,
-                filename=filename,
-                folder_id=DRIVE_FOLDER_EKSEKUSI,
-                mime_type="text/plain"
-            )
-            
-            st.success("✅ Upload berhasil!")
-            st.write(f"**File:** {result['name']}")
-            st.write(f"[Lihat File]({result['webViewLink']})")
-            
-        except Exception as e:
-            st.error(f"❌ Upload gagal: {str(e)}")
-            import traceback
-            st.code(traceback.format_exc())
