@@ -142,7 +142,7 @@ def _find_template_worksheet(sh, preferred_title: str = "Template"):
     raise RuntimeError("Template sheet tidak ditemukan. Buat tab 'Template' atau 'Sheet1'.")
 
 # ==============================
-#  Tabel Harga (default) + override via secrets - UPDATE VENDOR DARI SCREENSHOT
+#  Tabel Harga (default) + override via secrets - FIX HARGA VENDOR
 # ==============================
 DEFAULT_PRICE_VENDOR = {
     _normalize("Jasa Kegiatan Geser APP"): 93000,
@@ -153,7 +153,7 @@ DEFAULT_PRICE_VENDOR = {
     _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 11999,
     _normalize("Paku Beton"): 74,
     _normalize('Pole Bracket 3-9"'): 36823,
-    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 0,  # tidak terlihat di screenshot, set 0
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 29371,  # FIX: dari 0 ke 29371
     _normalize("Segel Plastik"): 0,
     _normalize("Twisted Cable 2x10 mm² – Al"): 0,
     _normalize("Twisted Cable 2 x 10 mm² – Al"): 0,
@@ -200,13 +200,19 @@ def _resolve_prices():
     return {"vendor": price_vendor, "pelanggan": price_pelanggan}
 
 # ==============================
-#  Item "PLN only" (di bawah garis pembatas)
+#  Item "PLN only" + Item JASA - NEW LOGIC
 # ==============================
 PLN_ONLY_NAMES = {
     _normalize("Segel Plastik"),
     _normalize("Twisted Cable 2 x 10 mm² – Al"),
     _normalize("Twisted Cable 2x10 mm² – Al"),
     _normalize("Asuransi"),
+}
+
+# NEW: Item yang masuk kolom JASA (SAT = PLG)
+JASA_ITEMS = {
+    _normalize("Jasa Kegiatan Geser APP"),
+    _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"),
 }
 
 # ==============================
@@ -302,7 +308,7 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
         return {"success": False, "message": f"Error: {str(e)}", "row": 0, "col": 0}
 
 # ==============================
-#  Ekspor (satu sheet)
+#  Ekspor (satu sheet) - FIX LOGIC KOLOM
 # ==============================
 def export_rekap_to_sheet(
     spreadsheet_id: str,
@@ -315,7 +321,10 @@ def export_rekap_to_sheet(
     """
     Duplikasi template & isi data.
     - Isi: Identitas (C3:C8), VOL (C12:C26),
-      HARGA SATUAN di D (PLN) ATAU E (Tunai) sesuai daftar PLN_ONLY_NAMES.
+      HARGA SATUAN di:
+        * Kolom F (JASA) untuk item dengan SAT = PLG
+        * Kolom D (PLN) untuk PLN_ONLY_NAMES
+        * Kolom E (TUNAI) untuk item lainnya
     - Subtotal & Total dibiarkan dihitung oleh formula di Template.
     """
     price_profiles = _resolve_prices()
@@ -353,10 +362,11 @@ def export_rekap_to_sheet(
     else:
         df_norm = df_pilih.rename(columns={"Harga_Satuan_Material": "Harga Satuan Material"}).copy()
 
-    # Grid untuk VOL, HARGA PLN (D), HARGA TUNAI (E)
+    # Grid untuk VOL, HARGA PLN (D), HARGA TUNAI (E), HARGA JASA (F)
     vol_values:   List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
     price_pln:    List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
     price_tunai:  List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
+    price_jasa:   List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]  # NEW
 
     # Optional: subtotal kasar untuk return info (untuk ditampilkan di Streamlit)
     subtotal = 0
@@ -381,13 +391,19 @@ def export_rekap_to_sheet(
         if qty > 0:
             vol_values[target_idx][0] = qty
 
-        # tentukan apakah item termasuk "PLN only"
+        # NEW LOGIC: Tentukan kolom berdasarkan jenis item
+        is_jasa = name_key in JASA_ITEMS
         is_pln_only = name_key in PLN_ONLY_NAMES
 
         if price > 0:
-            if is_pln_only:
+            if is_jasa:
+                # Item JASA (PLG) → Kolom F
+                price_jasa[target_idx][0] = price
+            elif is_pln_only:
+                # Item PLN only → Kolom D
                 price_pln[target_idx][0] = price
             else:
+                # Item umum → Kolom E (TUNAI)
                 price_tunai[target_idx][0] = price
 
         subtotal += qty * price
@@ -402,6 +418,7 @@ def export_rekap_to_sheet(
             {"range": f"'{sheet_title}'!C12:C26", "values": _to_sheet_values(vol_values)},
             {"range": f"'{sheet_title}'!D12:D26", "values": _to_sheet_values(price_pln)},
             {"range": f"'{sheet_title}'!E12:E26", "values": _to_sheet_values(price_tunai)},
+            {"range": f"'{sheet_title}'!F12:F26", "values": _to_sheet_values(price_jasa)},  # NEW
         ],
     }
 
