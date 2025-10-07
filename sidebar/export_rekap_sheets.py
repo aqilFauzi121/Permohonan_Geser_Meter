@@ -63,12 +63,11 @@ _TEMPLATE_CANDIDATES = ("Template", "Sheet1")
 _N_BARIS_ITEM = 15
 _RESERVED_TOP_ROWS = 2
 
-# ✅ FIX: Ganti "Strainthook" → "Strainhook" sesuai Template
 TEMPLATE_ORDER = [
     "Jasa Kegiatan Geser APP",
     "Jasa Kegiatan Geser Perubahan Situasi SR",
     "Service wedge clamp 2/4 x 6/10mm",
-    "Strainhook / Ekor babi",  # ✅ FIX TYPO
+    "Strainhook / Ekor babi",
     "Imundex Klem",
     "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover",
     "Paku Beton",
@@ -87,7 +86,6 @@ def _normalize(s: str) -> str:
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
-# ✅ FIX ALIASES: Update semua reference "Strainthook" → "Strainhook"
 ALIASES = {
     _normalize("Jasa Kegiatan"): _normalize("Jasa Kegiatan Geser APP"),
     _normalize("Jasa Kegiatan Geser APP"): _normalize("Jasa Kegiatan Geser APP"),
@@ -98,7 +96,7 @@ ALIASES = {
     
     # ✅ FIX: Strainhook (bukan Strainthook)
     _normalize("Strainhook / ekor babi"): _normalize("Strainhook / Ekor babi"),
-    _normalize("Strainthook / ekor babi"): _normalize("Strainhook / Ekor babi"),  # backward compatibility
+    _normalize("Strainthook / ekor babi"): _normalize("Strainhook / Ekor babi"),
     
     _normalize("Imundex Klem"): _normalize("Imundex Klem"),
     
@@ -147,7 +145,7 @@ DEFAULT_PRICE_VENDOR = {
     _normalize("Jasa Kegiatan Geser APP"): 93000,
     _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): 79000,
     _normalize("Service wedge clamp 2/4 x 6/10 mm"): 3990,
-    _normalize("Strainhook / Ekor babi"): 8000,  # ✅ FIX TYPO
+    _normalize("Strainhook / Ekor babi"): 8000,
     _normalize("Imundex Klem"): 454,
     _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 11999,
     _normalize("Paku Beton"): 74,
@@ -163,7 +161,7 @@ DEFAULT_PRICE_PELANGGAN = {
     _normalize("Jasa Kegiatan Geser APP"): 103230,
     _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): 87690,
     _normalize("Service wedge clamp 2/4 x 6/10 mm"): 4429,
-    _normalize("Strainhook / Ekor babi"): 8880,  # ✅ FIX TYPO
+    _normalize("Strainhook / Ekor babi"): 8880,
     _normalize("Imundex Klem"): 504,
     _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 13319,
     _normalize("Paku Beton"): 82,
