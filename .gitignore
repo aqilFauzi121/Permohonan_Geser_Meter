@@ -1,0 +1,51 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Virtual env
+.venv/
+venv/
+env/
+ENV/
+
+# Build / packaging
+build/
+dist/
+.eggs/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+.cache/
+.ipynb_checkpoints/
+
+# Editors / OS junk
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- Streamlit ----
+# KEEP config.toml if you have it, but NEVER commit secrets.toml
+.streamlit/secrets.toml
+.streamlit/
+Kode_Lama/
+
+# Streamlit cache (optional to ignore)
+.streamlit/*cache*/
+
+# ---- Credentials / Secrets (patterns) ----
+# Avoid committing any creds accidentally
+**/*service_account*.json
+**/*service-account*.json
+**/*client_secret*.json
+**/*-credentials.json
+
+# Your previous local JSON (specific pattern, just in case it still exists)
+sidebar/dynamic-house-*.json
+
+generate_token.py
