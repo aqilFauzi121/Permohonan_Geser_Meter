@@ -142,18 +142,18 @@ def _find_template_worksheet(sh, preferred_title: str = "Template"):
     raise RuntimeError("Template sheet tidak ditemukan. Buat tab 'Template' atau 'Sheet1'.")
 
 # ==============================
-#  Tabel Harga (default) + override via secrets - FINAL
+#  Tabel Harga (default) + override via secrets - UPDATE VENDOR DARI SCREENSHOT
 # ==============================
 DEFAULT_PRICE_VENDOR = {
-    _normalize("Jasa Kegiatan Geser APP"): 96000,
-    _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): 78930,
-    _normalize("Service wedge clamp 2/4 x 6/10 mm"): 3986,
+    _normalize("Jasa Kegiatan Geser APP"): 93000,
+    _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): 79000,
+    _normalize("Service wedge clamp 2/4 x 6/10 mm"): 3990,
     _normalize("Strainthook / Ekor babi"): 8000,
     _normalize("Imundex Klem"): 454,
-    _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 11987,
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 11999,
     _normalize("Paku Beton"): 74,
-    _normalize('Pole Bracket 3-9"'): 36787,
-    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 29371,
+    _normalize('Pole Bracket 3-9"'): 36823,
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 0,  # tidak terlihat di screenshot, set 0
     _normalize("Segel Plastik"): 0,
     _normalize("Twisted Cable 2x10 mm² – Al"): 0,
     _normalize("Twisted Cable 2 x 10 mm² – Al"): 0,
