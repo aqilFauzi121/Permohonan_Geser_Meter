@@ -52,22 +52,23 @@ def cleanup_old_rekap(sh, keep_latest: int = KEEP_LATEST_TABS) -> None:
             pass
 
 # ==============================
-#  Konstanta Template
+#  Konstanta Template - UPDATED untuk 13 items
 # ==============================
 _TEMPLATE_CANDIDATES = ("Template", "Sheet1")
-_N_BARIS_ITEM = 14           # C12..C25
+_N_BARIS_ITEM = 15           # C12..C26 (naik dari 14)
 _RESERVED_TOP_ROWS = 2       # baris 12–13 = label, biarkan kosong
 
-# Urutan label baris 14..25 pada template (SAMAKAN dgn sheet Anda)
+# Urutan label baris 14..26 pada template (SAMAKAN dgn sheet Anda) - UPDATED
 TEMPLATE_ORDER = [
     "Jasa Kegiatan",
-    "Sevice wedge clamp 2/4 x 6/10mm",
+    "Jasa Kegiatan Perubahan Situasi SR",
+    "Service wedge clamp 2/4 x 6/10mm",
     "Strainthook / Ekor babi",
-    "Cable support (508/U/2009)",
-    "Conn. press AL/AL 50-70 mm² + Scoot + Cover",
-    "Conn. press AL/AL 10-16 mm² + Scoot + Cover",
+    "Imundex Klem",
+    "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover",
     "Paku Beton",
     "Pole Bracket 3-9\"",
+    "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover",
     "Segel Plastik",
     "Twisted Cable 2x10 mm² – Al",
     "Asuransi",
@@ -81,17 +82,21 @@ def _normalize(s: str) -> str:
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
-# Alias UI ↔ Template (toleransi ejaan kecil)
+# Alias UI ↔ Template (toleransi ejaan kecil) - UPDATED
 ALIASES = {
-    _normalize("Service wedge clamp 2/4 x 6/10 mm"): _normalize("Sevice wedge clamp 2/4 x 6/10mm"),
+    _normalize("Service wedge clamp 2/4 x 6/10 mm"): _normalize("Service wedge clamp 2/4 x 6/10mm"),
     _normalize("Strainhook / ekor babi"): _normalize("Strainthook / Ekor babi"),
     _normalize("Cable support (50/80J/2009)"): _normalize("Cable support (508/U/2009)"),
     _normalize('Pole Bracket 3-9"'): _normalize('Pole Bracket 3-9"'),
     _normalize("Twisted Cable 2 x 10 mm² – Al"): _normalize("Twisted Cable 2 x 10 mm² – Al"),
     _normalize("Twisted Cable 2x10 mm² – Al"): _normalize("Twisted Cable 2x10 mm² – Al"),
-    _normalize("Conn. press AL/AL 50-70 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL 50-70 mm² + Scoot + Cover"),
-    _normalize("Conn. press AL/AL 10-16 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL 10-16 mm² + Scoot + Cover"),
+    _normalize("Conn. press AL/AL 50-70 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"),
+    _normalize("Conn. press AL/AL 10-16 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"),
     _normalize("Jasa Kegiatan"): _normalize("Jasa Kegiatan"),
+    _normalize("Jasa Kegiatan Perubahan Situasi SR"): _normalize("Jasa Kegiatan Perubahan Situasi SR"),
+    _normalize("Imundex Klem"): _normalize("Imundex Klem"),
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"),
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"),
 }
 _TEMPLATE_INDEX = { _normalize(n): i for i, n in enumerate(TEMPLATE_ORDER) }
 
@@ -120,32 +125,35 @@ def _find_template_worksheet(sh, preferred_title: str = "Template"):
     raise RuntimeError("Template sheet tidak ditemukan. Buat tab 'Template' atau 'Sheet1'.")
 
 # ==============================
-#  Tabel Harga (default) + override via secrets
+#  Tabel Harga (default) + override via secrets - UPDATED
 # ==============================
 DEFAULT_PRICE_VENDOR = {
     _normalize("Jasa Kegiatan"): 96000,
-    _normalize("Service wedge clamp 2/4 x 6/10 mm"): 5526,
-    _normalize("Strainthook / Ekor babi"): 20000,
-    _normalize("Cable support (508/U/2009)"): 1643,
-    _normalize("Conn. press AL/AL 50-70 mm² + Scoot + Cover"): 30698,
-    _normalize("Conn. press AL/AL 10-16 mm² + Scoot + Cover"): 18730,
-    _normalize("Paku Beton"): 500,
-    _normalize('Pole Bracket 3-9"'): 43714,
+    _normalize("Jasa Kegiatan Perubahan Situasi SR"): 78930,  # 90% dari pelanggan
+    _normalize("Service wedge clamp 2/4 x 6/10 mm"): 3986,
+    _normalize("Strainthook / Ekor babi"): 8000,
+    _normalize("Imundex Klem"): 454,
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 11987,
+    _normalize("Paku Beton"): 74,
+    _normalize('Pole Bracket 3-9"'): 36787,
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 29371,
     _normalize("Segel Plastik"): 0,
-    _normalize("Twisted Cable 2 x 10 mm² – Al"): 0,
     _normalize("Twisted Cable 2x10 mm² – Al"): 0,
+    _normalize("Twisted Cable 2 x 10 mm² – Al"): 0,
     _normalize("Asuransi"): 0,
 }
+
 DEFAULT_PRICE_PELANGGAN = {
-    _normalize("Jasa Kegiatan"): 106560,
-    _normalize("Service wedge clamp 2/4 x 6/10 mm"): 6134,
-    _normalize("Strainthook / Ekor babi"): 20000,
-    _normalize("Cable support (508/U/2009)"): 1824,
-    _normalize("Conn. press AL/AL 50-70 mm² + Scoot + Cover"): 34075,
-    _normalize("Conn. press AL/AL 10-16 mm² + Scoot + Cover"): 20790,
-    _normalize("Paku Beton"): 555,
-    _normalize('Pole Bracket 3-9"'): 48523,
-    _normalize("Segel Plastik"): 1943,
+    _normalize("Jasa Kegiatan"): 103230,
+    _normalize("Jasa Kegiatan Perubahan Situasi SR"): 87690,
+    _normalize("Service wedge clamp 2/4 x 6/10 mm"): 4429,
+    _normalize("Strainthook / Ekor babi"): 8880,
+    _normalize("Imundex Klem"): 504,
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 13319,
+    _normalize("Paku Beton"): 82,
+    _normalize('Pole Bracket 3-9"'): 40874,
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 32634,
+    _normalize("Segel Plastik"): 1947,
     _normalize("Twisted Cable 2x10 mm² – Al"): 4816,
     _normalize("Twisted Cable 2 x 10 mm² – Al"): 0,
     _normalize("Asuransi"): 0,
@@ -175,7 +183,7 @@ def _resolve_prices():
     return {"vendor": price_vendor, "pelanggan": price_pelanggan}
 
 # ==============================
-#  Item "PLN only" (di bawah garis pembatas)
+#  Item "PLN only" (di bawah garis pembatas) - UPDATED
 # ==============================
 PLN_ONLY_NAMES = {
     _normalize("Segel Plastik"),
@@ -229,7 +237,7 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
             # Normalisasi: lowercase, strip whitespace
             normalized = str(col_name).strip().lower()
             if "tanggal survey" in normalized or "tanggalsurvey" in normalized:
-                tanggal_survey_col = idx + 1  # +1 karena gspread 1-indexed
+                tanggal_survey_col = idx + 1
                 break
         
         if tanggal_survey_col is None:
@@ -289,7 +297,7 @@ def export_rekap_to_sheet(
 ):
     """
     Duplikasi template & isi data.
-    - Isi: Identitas (C3:C8), VOL (C12:C25),
+    - Isi: Identitas (C3:C8), VOL (C12:C26),
       HARGA SATUAN di D (PLN) ATAU E (Tunai) sesuai daftar PLN_ONLY_NAMES.
     - Subtotal & Total dibiarkan dihitung oleh formula di Template.
     """
@@ -374,9 +382,9 @@ def export_rekap_to_sheet(
         "valueInputOption": "USER_ENTERED",
         "data": [
             {"range": f"'{sheet_title}'!C3:C8",   "values": identitas},
-            {"range": f"'{sheet_title}'!C12:C25", "values": _to_sheet_values(vol_values)},
-            {"range": f"'{sheet_title}'!D12:D25", "values": _to_sheet_values(price_pln)},
-            {"range": f"'{sheet_title}'!E12:E25", "values": _to_sheet_values(price_tunai)},
+            {"range": f"'{sheet_title}'!C12:C26", "values": _to_sheet_values(vol_values)},
+            {"range": f"'{sheet_title}'!D12:D26", "values": _to_sheet_values(price_pln)},
+            {"range": f"'{sheet_title}'!E12:E26", "values": _to_sheet_values(price_tunai)},
         ],
     }
 
