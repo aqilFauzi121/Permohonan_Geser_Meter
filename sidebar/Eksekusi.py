@@ -196,6 +196,13 @@ if idpel_selected:
                     # Format: DDMMYYYY
                     tanggal_prefix = tanggal_eksekusi.strftime("%d%m%Y")
                     
+                    # Ensure 'nama' is always defined
+                    df_selected = df_sheets[df_sheets["ID Pelanggan"].astype(str) == idpel_selected]
+                    if not df_selected.empty:
+                        nama = str(df_selected.iloc[0].get("Nama", "-"))
+                    else:
+                        nama = "-"
+                    
                     subfolder_id = get_or_create_folder(DRIVE_FOLDER_EKSEKUSI, idpel_selected)
                     
                     uploaded_links = []

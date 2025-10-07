@@ -65,7 +65,7 @@ if not df.empty:
 
         st.subheader("📈 Jumlah Pengguna berdasarkan Daya")
         chart = (
-            alt.Chart(daya_count)
+            alt.Chart(data=daya_count)
             .mark_bar()
             .encode(
                 x=alt.X("Tarif / Daya:N", title="Tarif / Daya"),
