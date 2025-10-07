@@ -251,6 +251,14 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
         dict: {"success": bool, "message": str, "row": int, "col": int}
     """
     try:
+        # ✅ Import timezone helper di dalam function untuk memastikan selalu fresh
+        try:
+            from zoneinfo import ZoneInfo
+            now = datetime.now(tz=ZoneInfo("Asia/Jakarta"))
+        except Exception:
+            from datetime import timedelta
+            now = datetime.utcnow() + timedelta(hours=7)
+        
         gc = get_gspread_client()
         sh = gc.open_by_key(spreadsheet_id)
         
@@ -303,8 +311,7 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
         if matched_row_index is None:
             return {"success": False, "message": f"ID Pelanggan {idpel} tidak ditemukan di sheet", "row": 0, "col": 0}
         
-        # ✅ FIX: Format timestamp dengan waktu Jakarta (WIB)
-        now = now_jakarta()
+        # Format timestamp dengan waktu Jakarta (WIB)
         timestamp_str = now.strftime("%d/%m/%Y %H:%M:%S")
         
         # Update cell
@@ -312,14 +319,14 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
         
         return {
             "success": True, 
-            "message": f"Berhasil update row {matched_row_index}, col {tanggal_survey_col}", 
+            "message": f"Berhasil update row {matched_row_index}, col {tanggal_survey_col} dengan waktu WIB: {timestamp_str}", 
             "row": matched_row_index, 
             "col": tanggal_survey_col
         }
         
     except Exception as e:
         return {"success": False, "message": f"Error: {str(e)}", "row": 0, "col": 0}
-
+    
 # ==============================
 #  Ekspor (satu sheet) - FIX LOGIC KOLOM
 # ==============================
