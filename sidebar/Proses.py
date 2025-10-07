@@ -78,22 +78,23 @@ if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
             if str(row.get("ID Pelanggan", "")).strip() != ""
         }
 
-# Data barang dengan label SAT (B/M/PLG)
+# Data barang dengan label SAT (B/M/PLG) - UPDATED
 data_barang = [
-    {"nama": "Jasa Kegiatan", "SAT": "PLG", "harga": 96000},
-    {"nama": "Service wedge clamp 2/4 x 6/10 mm", "SAT": "B", "harga": 5526},
-    {"nama": "Strainhook / ekor babi", "SAT": "B", "harga": 20000},
-    {"nama": "Cable support (508/U/2009)", "SAT": "B", "harga": 1643},
-    {"nama": "Conn. press AL/AL 50-70 mm² + Scoot + Cover", "SAT": "B", "harga": 30698},
-    {"nama": "Conn. press AL/AL 10-16 mm² + Scoot + Cover", "SAT": "B", "harga": 18730},
-    {"nama": "Paku Beton", "SAT": "B", "harga": 500},
-    {"nama": "Pole Bracket 3-9\"", "SAT": "B", "harga": 43714},
+    {"nama": "Jasa Kegiatan", "SAT": "PLG", "harga": 103230},
+    {"nama": "Jasa Kegiatan Perubahan Situasi SR", "SAT": "PLG", "harga": 87690},
+    {"nama": "Service wedge clamp 2/4 x 6/10 mm", "SAT": "B", "harga": 4429},
+    {"nama": "Strainhook / ekor babi", "SAT": "B", "harga": 8880},
+    {"nama": "Imundex Klem", "SAT": "B", "harga": 504},
+    {"nama": "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover", "SAT": "B", "harga": 13319},
+    {"nama": "Paku Beton", "SAT": "B", "harga": 82},
+    {"nama": "Pole Bracket 3-9\"", "SAT": "B", "harga": 40874},
+    {"nama": "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover", "SAT": "B", "harga": 32634},
 ]
 data_barang_tambahan = [
-    {"nama": "Segel Plastik", "SAT": "B", "harga": 1943},
+    {"nama": "Segel Plastik", "SAT": "B", "harga": 1947},
     {"nama": "Twisted Cable 2 x 10 mm² – Al", "SAT": "M", "harga": 4816},
     {"nama": "Asuransi", "harga": 0},  # SAT sengaja kosong
-    {"nama": "Twisted Cable 2x10 mm² – Al", "SAT": "B", "harga": 0},
+    {"nama": "Twisted Cable 2 x 10 mm² – Al", "SAT": "B", "harga": 0},
 ]
 semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga": 0}] + data_barang_tambahan
 
