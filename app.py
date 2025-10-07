@@ -146,9 +146,12 @@ if page_module:
         
         if os.path.exists(module_path):
             spec = importlib.util.spec_from_file_location(page_module, module_path)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[page_module] = module
-            spec.loader.exec_module(module)
+            if spec is not None and spec.loader is not None:
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[page_module] = module
+                spec.loader.exec_module(module)
+            else:
+                st.error(f"Gagal membuat ModuleSpec atau loader untuk {page_module}.py")
         else:
             st.error(f"File {page_module}.py tidak ditemukan di folder sidebar/")
             
