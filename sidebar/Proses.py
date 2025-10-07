@@ -78,10 +78,10 @@ if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
             if str(row.get("ID Pelanggan", "")).strip() != ""
         }
 
-# Data barang dengan label SAT (B/M/PLG) - UPDATED
+# Data barang dengan label SAT (B/M/PLG) - FINAL UPDATE
 data_barang = [
-    {"nama": "Jasa Kegiatan", "SAT": "PLG", "harga": 103230},
-    {"nama": "Jasa Kegiatan Perubahan Situasi SR", "SAT": "PLG", "harga": 87690},
+    {"nama": "Jasa Kegiatan Geser APP", "SAT": "PLG", "harga": 103230},
+    {"nama": "Jasa Kegiatan Geser Perubahan Situasi SR", "SAT": "PLG", "harga": 87690},
     {"nama": "Service wedge clamp 2/4 x 6/10 mm", "SAT": "B", "harga": 4429},
     {"nama": "Strainhook / ekor babi", "SAT": "B", "harga": 8880},
     {"nama": "Imundex Klem", "SAT": "B", "harga": 504},
