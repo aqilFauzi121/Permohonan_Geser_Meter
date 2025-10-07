@@ -8,6 +8,19 @@ import streamlit as st
 from auth import get_gspread_client
 
 # ==============================
+#  TIMEZONE HELPER - NEW
+# ==============================
+try:
+    from zoneinfo import ZoneInfo
+    def now_jakarta():
+        return datetime.now(tz=ZoneInfo("Asia/Jakarta"))
+except Exception:
+    # Fallback jika zoneinfo tidak tersedia
+    from datetime import timedelta
+    def now_jakarta():
+        return datetime.utcnow() + timedelta(hours=7)
+
+# ==============================
 #  Konfigurasi Retention (Opsi B)
 # ==============================
 # Simpan hanya N sheet "REKAP ..." terbaru; yang lebih lama dihapus.
@@ -153,7 +166,7 @@ DEFAULT_PRICE_VENDOR = {
     _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 11999,
     _normalize("Paku Beton"): 74,
     _normalize('Pole Bracket 3-9"'): 36823,
-    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 29371,  # FIX: dari 0 ke 29371
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 29371,
     _normalize("Segel Plastik"): 0,
     _normalize("Twisted Cable 2x10 mm² – Al"): 0,
     _normalize("Twisted Cable 2 x 10 mm² – Al"): 0,
@@ -227,7 +240,7 @@ def _to_sheet_values(grid: List[List[Optional[int]]]) -> List[List[Any]]:
     return out
 
 # ==============================
-#  Update Tanggal Survey di Form Responses
+#  Update Tanggal Survey di Form Responses - FIXED TIMEZONE
 # ==============================
 def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
     """
@@ -290,8 +303,8 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
         if matched_row_index is None:
             return {"success": False, "message": f"ID Pelanggan {idpel} tidak ditemukan di sheet", "row": 0, "col": 0}
         
-        # Format timestamp sesuai format Form (dd/mm/yyyy HH:MM:SS)
-        now = datetime.now()
+        # ✅ FIX: Format timestamp dengan waktu Jakarta (WIB)
+        now = now_jakarta()
         timestamp_str = now.strftime("%d/%m/%Y %H:%M:%S")
         
         # Update cell
@@ -366,7 +379,7 @@ def export_rekap_to_sheet(
     vol_values:   List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
     price_pln:    List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
     price_tunai:  List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
-    price_jasa:   List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]  # NEW
+    price_jasa:   List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
 
     # Optional: subtotal kasar untuk return info (untuk ditampilkan di Streamlit)
     subtotal = 0
@@ -418,7 +431,7 @@ def export_rekap_to_sheet(
             {"range": f"'{sheet_title}'!C12:C26", "values": _to_sheet_values(vol_values)},
             {"range": f"'{sheet_title}'!D12:D26", "values": _to_sheet_values(price_pln)},
             {"range": f"'{sheet_title}'!E12:E26", "values": _to_sheet_values(price_tunai)},
-            {"range": f"'{sheet_title}'!F12:F26", "values": _to_sheet_values(price_jasa)},  # NEW
+            {"range": f"'{sheet_title}'!F12:F26", "values": _to_sheet_values(price_jasa)},
         ],
     }
 

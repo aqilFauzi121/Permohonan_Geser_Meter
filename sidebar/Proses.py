@@ -8,6 +8,19 @@ import streamlit as st
 import pandas as pd
 from auth import get_gspread_client
 
+# ==============================
+#  TIMEZONE HELPER - NEW
+# ==============================
+try:
+    from zoneinfo import ZoneInfo
+    def now_jakarta():
+        return datetime.now(tz=ZoneInfo("Asia/Jakarta"))
+except Exception:
+    # Fallback jika zoneinfo tidak tersedia
+    from datetime import timedelta
+    def now_jakarta():
+        return datetime.utcnow() + timedelta(hours=7)
+
 # --------------------------
 # Safe import of export module (dari folder 'sidebar')
 # --------------------------
@@ -262,7 +275,7 @@ with col2:
                 total = int(qty) * harga
                 barang_dipilih.append({
                     "Rincian": barang.get("nama", ""),
-                    "SAT": sat_label,                     # bisa kosong
+                    "SAT": sat_label,
                     "Vol": int(qty),
                     "Harga Satuan Material": harga,
                     "Harga Total": total
@@ -307,7 +320,8 @@ else:
 st.markdown("---")
 st.subheader("📤 Export Rekap ke Google Sheets")
 
-now = datetime.now().strftime("%Y%m%d_%H%M")
+# ✅ FIX: Gunakan now_jakarta() untuk timestamp yang benar
+now = now_jakarta().strftime("%Y%m%d_%H%M")
 safe_name = str(nama).replace("/", "-").replace("\\", "-")
 
 title_vendor    = f"REKAP {safe_name} - {now}_Vendor"
