@@ -52,16 +52,16 @@ def cleanup_old_rekap(sh, keep_latest: int = KEEP_LATEST_TABS) -> None:
             pass
 
 # ==============================
-#  Konstanta Template - UPDATED untuk 13 items
+#  Konstanta Template - FINAL UPDATE
 # ==============================
 _TEMPLATE_CANDIDATES = ("Template", "Sheet1")
-_N_BARIS_ITEM = 15           # C12..C26 (naik dari 14)
+_N_BARIS_ITEM = 15           # C12..C26 (13 items + 2 reserved rows)
 _RESERVED_TOP_ROWS = 2       # baris 12–13 = label, biarkan kosong
 
-# Urutan label baris 14..26 pada template (SAMAKAN dgn sheet Anda) - UPDATED
+# Urutan label baris 14..26 pada template - FINAL
 TEMPLATE_ORDER = [
-    "Jasa Kegiatan",
-    "Jasa Kegiatan Perubahan Situasi SR",
+    "Jasa Kegiatan Geser APP",
+    "Jasa Kegiatan Geser Perubahan Situasi SR",
     "Service wedge clamp 2/4 x 6/10mm",
     "Strainthook / Ekor babi",
     "Imundex Klem",
@@ -82,21 +82,38 @@ def _normalize(s: str) -> str:
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
-# Alias UI ↔ Template (toleransi ejaan kecil) - UPDATED
+# Alias UI ↔ Template (toleransi ejaan kecil) - FINAL
 ALIASES = {
+    # Jasa Kegiatan variations
+    _normalize("Jasa Kegiatan"): _normalize("Jasa Kegiatan Geser APP"),
+    _normalize("Jasa Kegiatan Geser APP"): _normalize("Jasa Kegiatan Geser APP"),
+    _normalize("Jasa Kegiatan Perubahan Situasi SR"): _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"),
+    _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"),
+    
+    # Service wedge clamp
     _normalize("Service wedge clamp 2/4 x 6/10 mm"): _normalize("Service wedge clamp 2/4 x 6/10mm"),
+    
+    # Strainhook
     _normalize("Strainhook / ekor babi"): _normalize("Strainthook / Ekor babi"),
+    
+    # Imundex Klem
+    _normalize("Imundex Klem"): _normalize("Imundex Klem"),
+    
+    # Cable support
     _normalize("Cable support (50/80J/2009)"): _normalize("Cable support (508/U/2009)"),
+    
+    # Conn. press variations
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"),
+    _normalize("Conn. press AL/AL 10-16 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"),
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"),
+    _normalize("Conn. press AL/AL 50-70 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"),
+    
+    # Pole Bracket
     _normalize('Pole Bracket 3-9"'): _normalize('Pole Bracket 3-9"'),
+    
+    # Twisted Cable variations
     _normalize("Twisted Cable 2 x 10 mm² – Al"): _normalize("Twisted Cable 2 x 10 mm² – Al"),
     _normalize("Twisted Cable 2x10 mm² – Al"): _normalize("Twisted Cable 2x10 mm² – Al"),
-    _normalize("Conn. press AL/AL 50-70 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"),
-    _normalize("Conn. press AL/AL 10-16 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"),
-    _normalize("Jasa Kegiatan"): _normalize("Jasa Kegiatan"),
-    _normalize("Jasa Kegiatan Perubahan Situasi SR"): _normalize("Jasa Kegiatan Perubahan Situasi SR"),
-    _normalize("Imundex Klem"): _normalize("Imundex Klem"),
-    _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"),
-    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"),
 }
 _TEMPLATE_INDEX = { _normalize(n): i for i, n in enumerate(TEMPLATE_ORDER) }
 
@@ -125,11 +142,11 @@ def _find_template_worksheet(sh, preferred_title: str = "Template"):
     raise RuntimeError("Template sheet tidak ditemukan. Buat tab 'Template' atau 'Sheet1'.")
 
 # ==============================
-#  Tabel Harga (default) + override via secrets - UPDATED
+#  Tabel Harga (default) + override via secrets - FINAL
 # ==============================
 DEFAULT_PRICE_VENDOR = {
-    _normalize("Jasa Kegiatan"): 96000,
-    _normalize("Jasa Kegiatan Perubahan Situasi SR"): 78930,  # 90% dari pelanggan
+    _normalize("Jasa Kegiatan Geser APP"): 96000,
+    _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): 78930,
     _normalize("Service wedge clamp 2/4 x 6/10 mm"): 3986,
     _normalize("Strainthook / Ekor babi"): 8000,
     _normalize("Imundex Klem"): 454,
@@ -144,8 +161,8 @@ DEFAULT_PRICE_VENDOR = {
 }
 
 DEFAULT_PRICE_PELANGGAN = {
-    _normalize("Jasa Kegiatan"): 103230,
-    _normalize("Jasa Kegiatan Perubahan Situasi SR"): 87690,
+    _normalize("Jasa Kegiatan Geser APP"): 103230,
+    _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): 87690,
     _normalize("Service wedge clamp 2/4 x 6/10 mm"): 4429,
     _normalize("Strainthook / Ekor babi"): 8880,
     _normalize("Imundex Klem"): 504,
@@ -183,7 +200,7 @@ def _resolve_prices():
     return {"vendor": price_vendor, "pelanggan": price_pelanggan}
 
 # ==============================
-#  Item "PLN only" (di bawah garis pembatas) - UPDATED
+#  Item "PLN only" (di bawah garis pembatas)
 # ==============================
 PLN_ONLY_NAMES = {
     _normalize("Segel Plastik"),
@@ -237,7 +254,7 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
             # Normalisasi: lowercase, strip whitespace
             normalized = str(col_name).strip().lower()
             if "tanggal survey" in normalized or "tanggalsurvey" in normalized:
-                tanggal_survey_col = idx + 1
+                tanggal_survey_col = idx + 1  # +1 karena gspread 1-indexed
                 break
         
         if tanggal_survey_col is None:
