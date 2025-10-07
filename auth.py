@@ -104,4 +104,3 @@ def upload_file_to_drive(file_content, filename: str, folder_id: str, mime_type:
     ).execute()
     
     return file
-
