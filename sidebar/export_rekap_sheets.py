@@ -388,7 +388,6 @@ def export_rekap_to_sheet(
             {"range": f"'{sheet_title}'!C12:C26", "values": _to_sheet_values(vol_values)},
             {"range": f"'{sheet_title}'!D12:D26", "values": _to_sheet_values(price_pln)},
             {"range": f"'{sheet_title}'!E12:E26", "values": _to_sheet_values(price_tunai)},
-            {"range": f"'{sheet_title}'!F12:F26", "values": _to_sheet_values(price_jasa)},
         ],
     }
 

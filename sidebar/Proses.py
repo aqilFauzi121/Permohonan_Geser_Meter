@@ -97,7 +97,7 @@ data_barang = [
     {"nama": "Jasa Kegiatan Geser Perubahan Situasi SR", "SAT": "PLG", "harga": 87690},
     {"nama": "Service wedge clamp 2/4 x 6/10 mm", "SAT": "B", "harga": 4429},
     {"nama": "Strainhook / ekor babi", "SAT": "B", "harga": 8880},
-    {"nama": "Imundex Klem", "SAT": "B", "harga": 504},
+    {"nama": "Imundex klem", "SAT": "B", "harga": 504},
     {"nama": "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover", "SAT": "B", "harga": 13319},
     {"nama": "Paku Beton", "SAT": "B", "harga": 82},
     {"nama": "Pole Bracket 3-9\"", "SAT": "B", "harga": 40874},
@@ -105,9 +105,9 @@ data_barang = [
 ]
 data_barang_tambahan = [
     {"nama": "Segel Plastik", "SAT": "B", "harga": 1947},
-    {"nama": "Twisted Cable 2 x 10 mm² – Al", "SAT": "M", "harga": 4816},
+    {"nama": "Twisted Cable 2x10 mm² - Al", "SAT": "M", "harga": 4816},
     {"nama": "Asuransi", "harga": 0},  # SAT sengaja kosong
-    {"nama": "Twisted Cable 2 x 10 mm² – Al", "SAT": "B", "harga": 0},
+    {"nama": "Twisted Cable 2x10 mm² - Al", "SAT": "B", "harga": 0}, 
 ]
 semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga": 0}] + data_barang_tambahan
 
