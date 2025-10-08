@@ -94,7 +94,6 @@ ALIASES = {
     
     _normalize("Service wedge clamp 2/4 x 6/10 mm"): _normalize("Service wedge clamp 2/4 x 6/10mm"),
     
-    # ✅ FIX: Strainhook (bukan Strainthook)
     _normalize("Strainhook / ekor babi"): _normalize("Strainhook / Ekor babi"),
     _normalize("Strainthook / ekor babi"): _normalize("Strainhook / Ekor babi"),
     
@@ -200,6 +199,7 @@ def _resolve_prices():
 #  Item Kategorisasi
 # ==============================
 PLN_ONLY_NAMES = {
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"),
     _normalize("Segel Plastik"),
     _normalize("Twisted Cable 2 x 10 mm² - Al"),
     _normalize("Twisted Cable 2x10 mm² - Al"),
