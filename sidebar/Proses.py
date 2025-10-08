@@ -105,8 +105,8 @@ data_barang = [
 ]
 data_barang_tambahan = [
     {"nama": "Segel Plastik", "SAT": "B", "harga": 1947},
-    {"nama": "Twisted Cable 2x10 mm² - Al", "SAT": "M", "harga": 4816},
-    {"nama": "Asuransi", "harga": 0},  # SAT sengaja kosong
+    {"nama": "Twisted Cable 2 x 10 mm² - Al", "SAT": "M", "harga": 4816},
+    {"nama": "Asuransi", "harga": 0},
     {"nama": "Twisted Cable 2x10 mm² - Al", "SAT": "B", "harga": 0}, 
 ]
 semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga": 0}] + data_barang_tambahan
