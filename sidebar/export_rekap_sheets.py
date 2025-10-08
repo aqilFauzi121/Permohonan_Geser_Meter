@@ -74,14 +74,14 @@ TEMPLATE_ORDER = [
     "Pole Bracket 3-9\"",
     "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover",
     "Segel Plastik",
-    "Twisted Cable 2x10 mm² – Al",
+    "Twisted Cable 2 x 10 mm² - Al",
     "Asuransi",
-    "Twisted Cable 2 x 10 mm² – Al",
+    "Twisted Cable 2x10 mm² - Al",
 ]
 
 def _normalize(s: str) -> str:
     s = str(s or "").lower()
-    s = s.replace("–", "-").replace("—", "-").replace(""", '"').replace(""", '"').replace("'", "'")
+    s = s.replace("-", "-").replace("—", "-").replace(""", '"').replace(""", '"').replace("'", "'")
     s = s.replace("mm2", "mm²").replace("mm^2", "mm²")
     s = re.sub(r"\s+", " ", s)
     return s.strip()
@@ -108,9 +108,9 @@ ALIASES = {
     _normalize("Conn. press AL/AL 50-70 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"),
     
     _normalize('Pole Bracket 3-9"'): _normalize('Pole Bracket 3-9"'),
-    
-    _normalize("Twisted Cable 2 x 10 mm² – Al"): _normalize("Twisted Cable 2 x 10 mm² – Al"),
-    _normalize("Twisted Cable 2x10 mm² – Al"): _normalize("Twisted Cable 2x10 mm² – Al"),
+
+    _normalize("Twisted Cable 2 x 10 mm² - Al"): _normalize("Twisted Cable 2 x 10 mm² - Al"),
+    _normalize("Twisted Cable 2x10 mm² - Al"): _normalize("Twisted Cable 2x10 mm² - Al"),
 }
 _TEMPLATE_INDEX = { _normalize(n): i for i, n in enumerate(TEMPLATE_ORDER) }
 
@@ -150,10 +150,10 @@ DEFAULT_PRICE_VENDOR = {
     _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 11999,
     _normalize("Paku Beton"): 74,
     _normalize('Pole Bracket 3-9"'): 36823,
-    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 0,  # ✅ FIX: 29371 → 0
-    _normalize("Segel Plastik"): 0,
-    _normalize("Twisted Cable 2x10 mm² – Al"): 0,
-    _normalize("Twisted Cable 2 x 10 mm² – Al"): 0,
+    _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 29400,
+    _normalize("Segel Plastik"): 1754,
+    _normalize("Twisted Cable 2 x 10 mm² - Al"): 4339,
+    _normalize("Twisted Cable 2x10 mm² - Al"): 0,
     _normalize("Asuransi"): 0,
 }
 
@@ -168,8 +168,8 @@ DEFAULT_PRICE_PELANGGAN = {
     _normalize('Pole Bracket 3-9"'): 40874,
     _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"): 32634,
     _normalize("Segel Plastik"): 1947,
-    _normalize("Twisted Cable 2x10 mm² – Al"): 4816,
-    _normalize("Twisted Cable 2 x 10 mm² – Al"): 0,
+    _normalize("Twisted Cable 2 x 10 mm² - Al"): 4816,
+    _normalize("Twisted Cable 2x10 mm² - Al"): 0,
     _normalize("Asuransi"): 0,
 }
 
@@ -201,8 +201,8 @@ def _resolve_prices():
 # ==============================
 PLN_ONLY_NAMES = {
     _normalize("Segel Plastik"),
-    _normalize("Twisted Cable 2 x 10 mm² – Al"),
-    _normalize("Twisted Cable 2x10 mm² – Al"),
+    _normalize("Twisted Cable 2 x 10 mm² - Al"),
+    _normalize("Twisted Cable 2x10 mm² - Al"),
     _normalize("Asuransi"),
 }
 
