@@ -1,4 +1,4 @@
-# export_rekap_sheets.py
+# export_rekap_sheets.py - FINAL STANDARDIZED
 import re
 from datetime import datetime
 from typing import Optional, List, Any
@@ -57,7 +57,7 @@ def cleanup_old_rekap(sh, keep_latest: int = KEEP_LATEST_TABS) -> None:
             pass
 
 # ==============================
-#  Konstanta Template - FINAL FIX
+#  Konstanta Template - STANDARDIZED sesuai Template Google Sheets
 # ==============================
 _TEMPLATE_CANDIDATES = ("Template", "Sheet1")
 _N_BARIS_ITEM = 15
@@ -66,9 +66,9 @@ _RESERVED_TOP_ROWS = 2
 TEMPLATE_ORDER = [
     "Jasa Kegiatan Geser APP",
     "Jasa Kegiatan Geser Perubahan Situasi SR",
-    "Service wedge clamp 2/4 x 6/10mm",
-    "Strainhook / Ekor babi",
-    "Imundex Klem",
+    "Service wedge clamp 2/4 x 6/10 mm",
+    "Strainhook / ekor babi",
+    "Imundex klem",
     "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover",
     "Paku Beton",
     "Pole Bracket 3-9\"",
@@ -81,25 +81,30 @@ TEMPLATE_ORDER = [
 
 def _normalize(s: str) -> str:
     s = str(s or "").lower()
-    s = s.replace("-", "-").replace("—", "-").replace(""", '"').replace(""", '"').replace("'", "'")
+    s = s.replace("–", "-").replace("—", "-").replace(""", '"').replace(""", '"').replace("'", "'")
     s = s.replace("mm2", "mm²").replace("mm^2", "mm²")
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
+# ✅ ALIASES: Semua map ke ejaan yang sama (dari Template)
 ALIASES = {
     _normalize("Jasa Kegiatan"): _normalize("Jasa Kegiatan Geser APP"),
     _normalize("Jasa Kegiatan Geser APP"): _normalize("Jasa Kegiatan Geser APP"),
     _normalize("Jasa Kegiatan Perubahan Situasi SR"): _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"),
     _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"),
     
-    _normalize("Service wedge clamp 2/4 x 6/10 mm"): _normalize("Service wedge clamp 2/4 x 6/10mm"),
+    # Service wedge: semua varian map ke ejaan dengan spasi
+    _normalize("Service wedge clamp 2/4 x 6/10 mm"): _normalize("Service wedge clamp 2/4 x 6/10 mm"),
+    _normalize("Service wedge clamp 2/4 x 6/10mm"): _normalize("Service wedge clamp 2/4 x 6/10 mm"),  # tanpa spasi → dengan spasi
     
-    _normalize("Strainhook / ekor babi"): _normalize("Strainhook / Ekor babi"),
-    _normalize("Strainthook / ekor babi"): _normalize("Strainhook / Ekor babi"),
+    # Strainhook: toleransi typo
+    _normalize("Strainhook / ekor babi"): _normalize("Strainhook / ekor babi"),
+    _normalize("Strainthook / ekor babi"): _normalize("Strainhook / ekor babi"),  # typo → benar
+    _normalize("Strainhook / Ekor babi"): _normalize("Strainhook / ekor babi"),  # kapital → kecil
     
-    _normalize("Imundex Klem"): _normalize("Imundex Klem"),
-    
-    _normalize("Cable support (50/80J/2009)"): _normalize("Cable support (508/U/2009)"),
+    # Imundex: toleransi kapitalisasi
+    _normalize("Imundex klem"): _normalize("Imundex klem"),
+    _normalize("Imundex Klem"): _normalize("Imundex klem"),  # kapital → kecil
     
     _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"),
     _normalize("Conn. press AL/AL 10-16 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"),
@@ -107,9 +112,12 @@ ALIASES = {
     _normalize("Conn. press AL/AL 50-70 mm² + Scoot + Cover"): _normalize("Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover"),
     
     _normalize('Pole Bracket 3-9"'): _normalize('Pole Bracket 3-9"'),
-
+    
+    # Twisted Cable: map ke ejaan dengan spasi (strip biasa)
     _normalize("Twisted Cable 2 x 10 mm² - Al"): _normalize("Twisted Cable 2 x 10 mm² - Al"),
-    _normalize("Twisted Cable 2x10 mm² - Al"): _normalize("Twisted Cable 2x10 mm² - Al"),
+    _normalize("Twisted Cable 2 x 10 mm² – Al"): _normalize("Twisted Cable 2 x 10 mm² - Al"),  # en-dash → strip biasa
+    _normalize("Twisted Cable 2x10 mm² - Al"): _normalize("Twisted Cable 2x10 mm² - Al"),  # tanpa spasi
+    _normalize("Twisted Cable 2x10 mm² – Al"): _normalize("Twisted Cable 2x10 mm² - Al"),  # en-dash → strip biasa
 }
 _TEMPLATE_INDEX = { _normalize(n): i for i, n in enumerate(TEMPLATE_ORDER) }
 
@@ -125,6 +133,15 @@ def _to_int(v, default=0) -> int:
     except Exception:
         return int(default)
 
+def _to_float(v, default=0.0) -> float:
+    """Convert to float untuk harga dengan desimal"""
+    try:
+        x = pd.to_numeric(v, errors="coerce")
+        if pd.isna(x): return float(default)
+        return float(x)
+    except Exception:
+        return float(default)
+
 def _find_template_worksheet(sh, preferred_title: str = "Template"):
     names = []
     if preferred_title: names.append(preferred_title)
@@ -138,14 +155,14 @@ def _find_template_worksheet(sh, preferred_title: str = "Template"):
     raise RuntimeError("Template sheet tidak ditemukan. Buat tab 'Template' atau 'Sheet1'.")
 
 # ==============================
-#  Tabel Harga - FINAL FIX
+#  Tabel Harga - STANDARDIZED
 # ==============================
 DEFAULT_PRICE_VENDOR = {
     _normalize("Jasa Kegiatan Geser APP"): 93000,
     _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): 79000,
     _normalize("Service wedge clamp 2/4 x 6/10 mm"): 3990,
-    _normalize("Strainhook / Ekor babi"): 8000,
-    _normalize("Imundex Klem"): 454,
+    _normalize("Strainhook / ekor babi"): 8000,
+    _normalize("Imundex klem"): 454,
     _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 11999,
     _normalize("Paku Beton"): 74,
     _normalize('Pole Bracket 3-9"'): 36823,
@@ -160,8 +177,8 @@ DEFAULT_PRICE_PELANGGAN = {
     _normalize("Jasa Kegiatan Geser APP"): 103230,
     _normalize("Jasa Kegiatan Geser Perubahan Situasi SR"): 87690,
     _normalize("Service wedge clamp 2/4 x 6/10 mm"): 4428.9,
-    _normalize("Strainhook / Ekor babi"): 8880,
-    _normalize("Imundex Klem"): 503.94,
+    _normalize("Strainhook / ekor babi"): 8880,
+    _normalize("Imundex klem"): 503.94,
     _normalize("Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover"): 13318.89,
     _normalize("Paku Beton"): 82.14,
     _normalize('Pole Bracket 3-9"'): 40873.53,
@@ -178,7 +195,7 @@ def _load_price_from_secrets(key: str) -> dict:
         if not data: return {}
         out = {}
         for k, v in dict(data).items():
-            out[_normalize(k)] = _to_int(v, 0)
+            out[_normalize(k)] = _to_float(v, 0)
         return out
     except Exception:
         return {}
@@ -214,7 +231,8 @@ JASA_ITEMS = {
 # ==============================
 #  Util konversi grid
 # ==============================
-def _to_sheet_values(grid: List[List[Optional[int]]]) -> List[List[Any]]:
+def _to_sheet_values(grid: List[List[Optional[Any]]]) -> List[List[Any]]:
+    """Convert grid ke format Google Sheets, support int dan float"""
     out: List[List[Any]] = []
     for row in grid:
         v = row[0] if row else None
@@ -226,7 +244,6 @@ def _to_sheet_values(grid: List[List[Optional[int]]]) -> List[List[Any]]:
 # ==============================
 def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
     try:
-        # Timezone helper di dalam function
         try:
             from zoneinfo import ZoneInfo
             now = datetime.now(tz=ZoneInfo("Asia/Jakarta"))
@@ -339,11 +356,11 @@ def export_rekap_to_sheet(
         df_norm = df_pilih.rename(columns={"Harga_Satuan_Material": "Harga Satuan Material"}).copy()
 
     vol_values:   List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
-    price_pln:    List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
-    price_tunai:  List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
-    price_jasa:   List[List[Optional[int]]] = [[None] for _ in range(_N_BARIS_ITEM)]
+    price_pln:    List[List[Optional[float]]] = [[None] for _ in range(_N_BARIS_ITEM)]
+    price_tunai:  List[List[Optional[float]]] = [[None] for _ in range(_N_BARIS_ITEM)]
+    price_jasa:   List[List[Optional[float]]] = [[None] for _ in range(_N_BARIS_ITEM)]
 
-    subtotal = 0
+    subtotal = 0.0
 
     for _, row in df_norm.iterrows():
         nama_raw = str(row.get("Rincian", "")).strip()
@@ -360,7 +377,7 @@ def export_rekap_to_sheet(
 
         qty = _to_int(row.get("Vol", 0))
         name_key = ALIASES.get(_normalize(nama_raw), _normalize(nama_raw))
-        price = price_table.get(name_key, _to_int(row.get("Harga Satuan Material", 0)))
+        price = price_table.get(name_key, _to_float(row.get("Harga Satuan Material", 0)))
 
         if qty > 0:
             vol_values[target_idx][0] = qty
@@ -378,8 +395,8 @@ def export_rekap_to_sheet(
 
         subtotal += qty * price
 
-    ppn = int(round(subtotal * 0.11))
-    total_biaya = int(subtotal + ppn)
+    ppn = round(subtotal * 0.11, 2)
+    total_biaya = subtotal + ppn
 
     payload = {
         "valueInputOption": "USER_ENTERED",
@@ -388,9 +405,10 @@ def export_rekap_to_sheet(
             {"range": f"'{sheet_title}'!C12:C26", "values": _to_sheet_values(vol_values)},
             {"range": f"'{sheet_title}'!D12:D26", "values": _to_sheet_values(price_pln)},
             {"range": f"'{sheet_title}'!E12:E26", "values": _to_sheet_values(price_tunai)},
-            {"range": f"'{sheet_title}'!G12:G26", "values": _to_sheet_values(price_jasa)},  # ✅ TAMBAH INI!
+            {"range": f"'{sheet_title}'!G12:G26", "values": _to_sheet_values(price_jasa)},
         ],
     }
+
     try:
         sh.values_batch_update(body=payload)
     except Exception:
@@ -403,7 +421,7 @@ def export_rekap_to_sheet(
 
     return {
         "sheet_title": sheet_title,
-        "subtotal": int(subtotal),
+        "subtotal": subtotal,
         "ppn": ppn,
         "total_after_ppn": total_biaya,
         "new_sheet_id": new_sheet_id,
