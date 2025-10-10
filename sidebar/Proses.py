@@ -81,17 +81,17 @@ if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
             if str(row.get("ID Pelanggan", "")).strip() != ""
         }
 
-# Data barang dengan harga PELANGGAN (untuk preview di website)
+# Data barang dengan harga PELANGGAN (sesuai Template Pelanggan)
 data_barang = [
     {"nama": "Jasa Kegiatan Geser APP", "SAT": "PLG", "harga": 103230},
     {"nama": "Jasa Kegiatan Geser Perubahan Situasi SR", "SAT": "PLG", "harga": 87690},
-    {"nama": "Service wedge clamp 2/4 x 6/10 mm", "SAT": "B", "harga": 4428.9},
-    {"nama": "Strainhook / ekor babi", "SAT": "B", "harga": 8880},
+    {"nama": "Service wedge clamp 2/4 x 6/10 mm", "SAT": "B", "harga": 4428.90},
+    {"nama": "Strainhook / ekor babi", "SAT": "B", "harga": 8880.00},
     {"nama": "Imundex klem", "SAT": "B", "harga": 503.94},
     {"nama": "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover", "SAT": "B", "harga": 13318.89},
     {"nama": "Paku Beton", "SAT": "B", "harga": 82.14},
     {"nama": "Pole Bracket 3-9\"", "SAT": "B", "harga": 40873.53},
-    {"nama": "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover", "SAT": "B", "harga": 32634},
+    {"nama": "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover", "SAT": "B", "harga": 32634.00},
 ]
 data_barang_tambahan = [
     {"nama": "Segel Plastik", "SAT": "B", "harga": 1946.94},
@@ -249,8 +249,8 @@ with col2:
                 key=key_name
             )
             if qty and qty > 0:
-                harga = int(barang.get("harga", 0) or 0)
-                total = int(qty) * harga
+                harga = float(barang.get("harga", 0) or 0)
+                total = qty * harga
                 barang_dipilih.append({
                     "Rincian": barang.get("nama", ""),
                     "SAT": sat_label,
@@ -284,9 +284,9 @@ if not df_pilih.empty:
     ppn = subtotal * 0.11
     total_biaya = subtotal + ppn
 
-    st.write(f"💰 **Subtotal:** Rp {subtotal:,.0f}")
-    st.write(f"💸 **PPN (11%):** Rp {ppn:,.0f}")
-    st.success(f"🏷 **TOTAL BIAYA SETELAH PPN: Rp {total_biaya:,.0f}**")
+    st.write(f"💰 **Subtotal:** Rp {subtotal:,.2f}")
+    st.write(f"💸 **PPN (11%):** Rp {ppn:,.2f}")
+    st.success(f"🏷 **TOTAL BIAYA SETELAH PPN: Rp {total_biaya:,.2f}**")
 else:
     st.info("Belum ada barang yang dipilih (isi kuantitas > 0).")
 
