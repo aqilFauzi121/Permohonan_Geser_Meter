@@ -8,22 +8,17 @@ import streamlit as st
 import pandas as pd
 from auth import get_gspread_client
 
-# ==============================
-#  TIMEZONE HELPER - NEW
-# ==============================
+# Timezone helper
 try:
     from zoneinfo import ZoneInfo
     def now_jakarta():
         return datetime.now(tz=ZoneInfo("Asia/Jakarta"))
 except Exception:
-    # Fallback jika zoneinfo tidak tersedia
     from datetime import timedelta
     def now_jakarta():
         return datetime.utcnow() + timedelta(hours=7)
 
-# --------------------------
-# Safe import of export module (dari folder 'sidebar')
-# --------------------------
+# Safe import of export module
 THIS_DIR = os.path.dirname(__file__)
 if THIS_DIR and THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
@@ -32,7 +27,7 @@ export_rekap_to_sheet: Optional[Callable] = None
 HAVE_EXPORT = False
 import_error_msg = None
 try:
-    import export_rekap_sheets as _export_mod  # type: ignore
+    import export_rekap_sheets as _export_mod
     export_rekap_to_sheet = getattr(_export_mod, "export_rekap_to_sheet", None)
     HAVE_EXPORT = callable(export_rekap_to_sheet)
 except Exception:
@@ -40,7 +35,7 @@ except Exception:
     export_rekap_to_sheet = None
     HAVE_EXPORT = False
 
-# === Konfigurasi Google Sheet dari secrets ===
+# Konfigurasi Google Sheet dari secrets
 try:
     SPREADSHEET_ID = str(st.secrets["SHEET_ID"])
     GID = str(st.secrets["SHEET_GID"])
@@ -60,13 +55,8 @@ def load_sheet_by_gid(spreadsheet_id, gid):
         target = sh.sheet1
     return target
 
-# -------- Cache data Google Sheets supaya hemat kuota --------
 @st.cache_data(ttl=180, show_spinner=False)
 def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
-    """
-    Ambil data pelanggan sekali, cache 3 menit.
-    Menggunakan get_all_records agar aman ke struktur kolom saat ini.
-    """
     ws = load_sheet_by_gid(spreadsheet_id, gid)
     data = ws.get_all_records()
     df = pd.DataFrame(data).fillna("")
@@ -75,7 +65,7 @@ def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
 # Load data pelanggan (cached)
 df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
 
-# Siapkan mapping ID -> Nama (untuk backward compatibility jika perlu)
+# Siapkan mapping ID -> Nama
 id_to_name = {}
 if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
     if "Nama" in df_sheets.columns:
@@ -91,13 +81,13 @@ if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
             if str(row.get("ID Pelanggan", "")).strip() != ""
         }
 
-# Data barang dengan label SAT (B/M/PLG) - FINAL UPDATE
+# Data barang dengan harga PELANGGAN (untuk preview di website)
 data_barang = [
     {"nama": "Jasa Kegiatan Geser APP", "SAT": "PLG", "harga": 103230},
     {"nama": "Jasa Kegiatan Geser Perubahan Situasi SR", "SAT": "PLG", "harga": 87690},
-    {"nama": "Service wedge clamp 2/4 x 6/10 mm", "SAT": "B", "harga": 4429},  # ✅ DENGAN SPASI
-    {"nama": "Strainhook / ekor babi", "SAT": "B", "harga": 8880},  # ✅ huruf kecil "ekor"
-    {"nama": "Imundex klem", "SAT": "B", "harga": 504},  # ✅ huruf kecil "klem"
+    {"nama": "Service wedge clamp 2/4 x 6/10 mm", "SAT": "B", "harga": 4429},
+    {"nama": "Strainhook / ekor babi", "SAT": "B", "harga": 8880},
+    {"nama": "Imundex klem", "SAT": "B", "harga": 504},
     {"nama": "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover", "SAT": "B", "harga": 13319},
     {"nama": "Paku Beton", "SAT": "B", "harga": 82},
     {"nama": "Pole Bracket 3-9\"", "SAT": "B", "harga": 40874},
@@ -105,18 +95,16 @@ data_barang = [
 ]
 data_barang_tambahan = [
     {"nama": "Segel Plastik", "SAT": "B", "harga": 1947},
-    {"nama": "Twisted Cable 2 x 10 mm² - Al", "SAT": "M", "harga": 4816},  # ✅ DENGAN SPASI, strip biasa
+    {"nama": "Twisted Cable 2 x 10 mm² - Al", "SAT": "M", "harga": 4816},
     {"nama": "Asuransi", "harga": 0},
-    {"nama": "Twisted Cable 2x10 mm² - Al", "SAT": "B", "harga": 0},  # ✅ TANPA SPASI
+    {"nama": "Twisted Cable 2x10 mm² - Al", "SAT": "B", "harga": 0},
 ]
 semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga": 0}] + data_barang_tambahan
 
-# === Layout Streamlit ===
+# Layout Streamlit
 st.title("📋 Daftar Barang & Input Petugas")
 
-# ============================================================
-# FILTER: TANGGAL + SEARCH ID/NAMA
-# ============================================================
+# Filter: Tanggal + Search ID/Nama
 st.subheader("🔎 Filter & Pilih Pelanggan")
 
 # Konversi Timestamp ke Date
@@ -128,7 +116,6 @@ if "Timestamp" in df_sheets.columns:
             errors='coerce'
         ).dt.date
     except Exception:
-        # Fallback jika format berbeda
         df_sheets["Date"] = pd.to_datetime(
             df_sheets["Timestamp"], 
             errors='coerce'
@@ -137,7 +124,6 @@ if "Timestamp" in df_sheets.columns:
 col_filter1, col_filter2 = st.columns(2)
 
 with col_filter1:
-    # Filter Tanggal
     if "Date" in df_sheets.columns:
         available_dates = df_sheets["Date"].dropna().unique()
         available_dates = sorted([d for d in available_dates if d], reverse=True)
@@ -154,7 +140,6 @@ with col_filter1:
         st.info("Kolom Timestamp tidak ditemukan")
 
 with col_filter2:
-    # Search ID atau Nama
     search_text = st.text_input(
         "🔍 Cari IDPEL/Nama Pelanggan:",
         placeholder="Contoh: 513130665162 atau Sofia",
@@ -164,11 +149,9 @@ with col_filter2:
 # Apply filters
 df_filtered = df_sheets.copy()
 
-# Filter berdasarkan tanggal
 if selected_date != "Semua Tanggal" and "Date" in df_sheets.columns:
     df_filtered = df_filtered[df_filtered["Date"].astype(str) == selected_date]
 
-# Filter berdasarkan search text (ID atau Nama)
 if search_text.strip():
     search_lower = search_text.strip().lower()
     mask_id = df_filtered["ID Pelanggan"].astype(str).str.lower().str.contains(search_lower, na=False)
@@ -188,7 +171,6 @@ if not df_filtered.empty:
         if pid:
             filtered_options.append(f"{pid} ({pnama})")
     
-    # Info jumlah hasil
     result_count = len(filtered_options) - 1
     if result_count > 0:
         st.info(f"✅ Ditemukan **{result_count}** pelanggan yang sesuai filter")
@@ -208,7 +190,6 @@ else:
     pilihan_dropdown = "- Pilih ID -"
     st.info("💡 Silakan gunakan filter di atas untuk mencari pelanggan")
 
-# Extract ID dari pilihan
 def extract_id(opt: str) -> str:
     if not opt or opt == "- Pilih ID -":
         return ""
@@ -218,13 +199,10 @@ def extract_id(opt: str) -> str:
 
 idpel_selected = extract_id(pilihan_dropdown)
 
-# ============================================================
-# LAYOUT 2 KOLOM: DATA PELANGGAN & INPUT BARANG
-# ============================================================
+# Layout 2 kolom: Data Pelanggan & Input Barang
 col1, col2 = st.columns(2)
 
 with col1:
-    # Inisialisasi default
     nama = "-"
     lokasi = "-"
     pekerjaan = ""
@@ -252,7 +230,7 @@ with col1:
     else:
         st.info("Silakan pilih ID Pelanggan untuk melihat detail.")
 
-# ------- Input barang (gunakan form agar tidak rerun tiap klik) -------
+# Input barang
 barang_dipilih = []
 with col2:
     st.subheader("🛠 Input Kuantitas Barang")
@@ -263,7 +241,7 @@ with col2:
                 continue
 
             key_name = f"qty_{idx}"
-            sat_label = barang.get("SAT", "")  # aman bila tidak ada
+            sat_label = barang.get("SAT", "")
             qty = st.number_input(
                 f"{barang.get('nama', 'Item')} ({sat_label})",
                 min_value=0,
@@ -282,14 +260,12 @@ with col2:
                 })
         submitted = st.form_submit_button("Hitung Rekap")
 
-# Simpan hasil terakhir di session_state agar tidak hilang saat rerun lain
+# Simpan hasil di session_state
 if submitted:
     st.session_state["barang_dipilih"] = barang_dipilih
 barang_dipilih = st.session_state.get("barang_dipilih", barang_dipilih)
 
-# ========================
 # Rekapitulasi
-# ========================
 st.subheader("📦 Rekapitulasi")
 df_pilih = pd.DataFrame(barang_dipilih) if barang_dipilih else pd.DataFrame()
 
@@ -314,13 +290,10 @@ if not df_pilih.empty:
 else:
     st.info("Belum ada barang yang dipilih (isi kuantitas > 0).")
 
-# ========================
-# Tombol Export Selalu Ada (dua sheet: Vendor & Pelanggan)
-# ========================
+# Tombol Export
 st.markdown("---")
 st.subheader("📤 Export Rekap ke Google Sheets")
 
-# ✅ FIX: Gunakan now_jakarta() untuk timestamp yang benar
 now = now_jakarta().strftime("%Y%m%d_%H%M")
 safe_name = str(nama).replace("/", "-").replace("\\", "-")
 
@@ -360,11 +333,6 @@ if st.button("📥 Export ke Google Sheets"):
                 st.success(
                     f"✅ Berhasil membuat: **{pair_info['vendor']['sheet_title']}** dan "
                     f"**{pair_info['pelanggan']['sheet_title']}**"
-                )
-                st.write(
-                    f"Subtotal: Rp {pair_info['vendor'].get('subtotal', 0):,} · "
-                    f"PPN: Rp {pair_info['vendor'].get('ppn', 0):,} · "
-                    f"Total: Rp {pair_info['vendor'].get('total_after_ppn', 0):,}"
                 )
                 
                 # Detail feedback update Tanggal Survey
