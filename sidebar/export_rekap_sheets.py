@@ -47,7 +47,7 @@ def cleanup_old_rekap(sh, keep_latest: int = KEEP_LATEST_TABS) -> None:
         except Exception:
             pass
 
-# Template titles (can be overridden from secrets)
+# Template titles
 TEMPLATE_VENDOR_TITLE = "Template Vendor"
 TEMPLATE_PELANGGAN_TITLE = "Template Pelanggan"
 
@@ -59,7 +59,7 @@ except Exception:
 
 _N_BARIS_ITEM = 13  # Row 14-26
 
-# Item mapping to template rows (0-based index from row 14)
+# Item mapping to template rows
 TEMPLATE_ORDER = [
     "Jasa Kegiatan Geser APP",
     "Jasa Kegiatan Geser Perubahan Situasi SR",
@@ -121,12 +121,6 @@ def _to_int(v, default=0) -> int:
         return int(x)
     except Exception:
         return int(default)
-
-def _find_template_worksheet(sh, template_title: str):
-    try:
-        return sh.worksheet(template_title)
-    except Exception:
-        raise RuntimeError(f"Template sheet '{template_title}' tidak ditemukan. Buat tab 'Template' atau 'Sheet1'.")
 
 def _to_sheet_values(grid: List[List[Optional[Any]]]) -> List[List[Any]]:
     out: List[List[Any]] = []
@@ -206,7 +200,21 @@ def export_rekap_to_sheet(
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     
-    template_ws = _find_template_worksheet(sh, template_title)
+    # Find template worksheet
+    template_ws = None
+    all_sheets = []
+    for ws in sh.worksheets():
+        all_sheets.append(ws.title)
+        if ws.title == template_title:
+            template_ws = ws
+            break
+    
+    if template_ws is None:
+        raise RuntimeError(
+            f"Template '{template_title}' tidak ditemukan!\n"
+            f"Available sheets: {', '.join(all_sheets)}"
+        )
+    
     template_id = template_ws.id
     
     # Duplicate template
