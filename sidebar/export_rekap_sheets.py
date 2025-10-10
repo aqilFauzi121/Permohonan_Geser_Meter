@@ -1,4 +1,4 @@
-# export_rekap_sheets.py
+# export_rekap_sheets.py - Simplified with Template Formulas
 import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Any
@@ -47,13 +47,13 @@ def cleanup_old_rekap(sh, keep_latest: int = KEEP_LATEST_TABS) -> None:
         except Exception:
             pass
 
-# Template titles (override from secrets if available)
-_TEMPLATE_VENDOR_TITLE = "Template Vendor"
-_TEMPLATE_PELANGGAN_TITLE = "Template Pelanggan"
+# Template titles (can be overridden from secrets)
+TEMPLATE_VENDOR_TITLE = "Template Vendor"
+TEMPLATE_PELANGGAN_TITLE = "Template Pelanggan"
 
 try:
-    _TEMPLATE_VENDOR_TITLE = str(st.secrets.get("TEMPLATE_VENDOR_TITLE", "Template Vendor"))
-    _TEMPLATE_PELANGGAN_TITLE = str(st.secrets.get("TEMPLATE_PELANGGAN_TITLE", "Template Pelanggan"))
+    TEMPLATE_VENDOR_TITLE = str(st.secrets.get("TEMPLATE_VENDOR_TITLE", "Template Vendor"))
+    TEMPLATE_PELANGGAN_TITLE = str(st.secrets.get("TEMPLATE_PELANGGAN_TITLE", "Template Pelanggan"))
 except Exception:
     pass
 
@@ -126,7 +126,7 @@ def _find_template_worksheet(sh, template_title: str):
     try:
         return sh.worksheet(template_title)
     except Exception:
-        raise RuntimeError(f"Template sheet '{template_title}' tidak ditemukan.")
+        raise RuntimeError(f"Template sheet '{template_title}' tidak ditemukan. Buat tab 'Template' atau 'Sheet1'.")
 
 def _to_sheet_values(grid: List[List[Optional[Any]]]) -> List[List[Any]]:
     out: List[List[Any]] = []
@@ -291,7 +291,7 @@ def export_rekap_pair(
         sheet_title=base_sheet_title_vendor,
         meta=meta,
         df_pilih=df_pilih,
-        template_title=_TEMPLATE_VENDOR_TITLE,
+        template_title=TEMPLATE_VENDOR_TITLE,
     )
     
     info_pelanggan = export_rekap_to_sheet(
@@ -299,7 +299,7 @@ def export_rekap_pair(
         sheet_title=base_sheet_title_pelanggan,
         meta=meta,
         df_pilih=df_pilih,
-        template_title=_TEMPLATE_PELANGGAN_TITLE,
+        template_title=TEMPLATE_PELANGGAN_TITLE,
     )
     
     sh = get_gspread_client().open_by_key(spreadsheet_id)
