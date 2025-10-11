@@ -135,6 +135,122 @@ data_barang_tambahan = [
 ]
 semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga": 0}] + data_barang_tambahan
 
+# Dialog untuk preview
+@st.dialog("📋 Preview Rekap", width="large")
+def show_preview_dialog(df_pilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor):
+    id_display = idpel_selected if idpel_selected else ""
+    nama_dengan_id = f"{nama} ({id_display})" if id_display else f"{nama}"
+    
+    # Calculate for Vendor & Pelanggan
+    df_preview_vendor = df_pilih.copy()
+    df_preview_pelanggan = df_pilih.copy()
+    
+    # Update harga untuk preview vendor
+    for i in range(len(df_preview_vendor)):
+        item_name = df_preview_vendor.iloc[i]["Rincian"]
+        qty = df_preview_vendor.iloc[i]["Vol"]
+        harga_v = harga_vendor.get(item_name, 0)
+        df_preview_vendor.loc[df_preview_vendor.index[i], "Harga Satuan Material"] = harga_v
+        df_preview_vendor.loc[df_preview_vendor.index[i], "Harga Total"] = qty * harga_v
+    
+    subtotal_vendor = df_preview_vendor["Harga Total"].sum()
+    ppn_vendor = subtotal_vendor * 0.11
+    total_vendor = subtotal_vendor + ppn_vendor
+    
+    subtotal_pelanggan = df_pilih["Harga Total"].sum()
+    ppn_pelanggan = subtotal_pelanggan * 0.11
+    total_pelanggan = subtotal_pelanggan + ppn_pelanggan
+    
+    # Tabs
+    tab1, tab2 = st.tabs(["📦 VENDOR", "👥 PELANGGAN"])
+    
+    with tab1:
+        st.markdown("#### REKAP HARGA PEKERJAAN - VENDOR")
+        st.markdown(f"**PEKERJAAN:** {pekerjaan or '-'}")
+        st.markdown(f"**NAMA:** {nama_dengan_id}")
+        st.markdown(f"**LOKASI:** {lokasi}")
+        st.markdown(f"**ULP:** {ulp or '-'}")
+        st.markdown(f"**NO SPK:** {no_spk or '-'}")
+        st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
+        st.write("---")
+        st.dataframe(df_preview_vendor[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
+        st.write(f"💰 **Subtotal:** Rp {subtotal_vendor:,.2f}")
+        st.write(f"💸 **PPN (11%):** Rp {ppn_vendor:,.2f}")
+        st.success(f"🏷 **TOTAL BIAYA: Rp {total_vendor:,.2f}**")
+    
+    with tab2:
+        st.markdown("#### REKAP HARGA PEKERJAAN - PELANGGAN")
+        st.markdown(f"**PEKERJAAN:** {pekerjaan or '-'}")
+        st.markdown(f"**NAMA:** {nama_dengan_id}")
+        st.markdown(f"**LOKASI:** {lokasi}")
+        st.markdown(f"**ULP:** {ulp or '-'}")
+        st.markdown(f"**NO SPK:** {no_spk or '-'}")
+        st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
+        st.write("---")
+        st.dataframe(df_pilih[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
+        st.write(f"💰 **Subtotal:** Rp {subtotal_pelanggan:,.2f}")
+        st.write(f"💸 **PPN (11%):** Rp {ppn_pelanggan:,.2f}")
+        st.success(f"🏷 **TOTAL BIAYA: Rp {total_pelanggan:,.2f}**")
+    
+    # Action buttons
+    st.write("---")
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+    
+    with col_btn1:
+        if st.button("🚫 Batal", use_container_width=True, key="btn_cancel"):
+            st.rerun()
+    
+    with col_btn3:
+        if st.button("✅ Konfirmasi & Export", type="primary", use_container_width=True, key="btn_export"):
+            meta = {
+                "Pekerjaan": pekerjaan or "-",
+                "Nama": nama_dengan_id or "-",
+                "Lokasi": lokasi or "-",
+                "ULP": ulp or "-",
+                "No SPK": no_spk or "-",
+                "Vendor": vendor or "-"
+            }
+            
+            now = now_jakarta().strftime("%Y%m%d_%H%M")
+            safe_name = str(nama).replace("/", "-").replace("\\", "-")
+            title_vendor = f"REKAP {safe_name} - {now}_Vendor"
+            title_pelanggan = f"REKAP {safe_name} - {now}_Pelanggan"
+            
+            with st.spinner("Menulis dua rekapan (Vendor & Pelanggan) ke Google Sheets..."):
+                try:
+                    from export_rekap_sheets import export_rekap_pair
+                    pair_info = export_rekap_pair(
+                        spreadsheet_id=SPREADSHEET_ID,
+                        base_sheet_title_vendor=title_vendor,
+                        base_sheet_title_pelanggan=title_pelanggan,
+                        meta=meta,
+                        df_pilih=df_pilih,
+                        idpel=idpel_selected,
+                        gid=GID,
+                    )
+                    
+                    st.success(
+                        f"✅ Berhasil membuat: **{pair_info['vendor']['sheet_title']}** dan "
+                        f"**{pair_info['pelanggan']['sheet_title']}**"
+                    )
+                    
+                    survey_result = pair_info.get("survey_result", {})
+                    if survey_result.get("success", False):
+                        st.info(f"📅 {survey_result.get('message', 'Tanggal Survey berhasil diperbarui')}")
+                    else:
+                        st.warning(f"⚠️ Tanggal Survey gagal diperbarui: {survey_result.get('message', 'Unknown error')}")
+                    
+                    st.balloons()
+                    
+                    # Wait a bit then close dialog
+                    import time
+                    time.sleep(2)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Gagal mengekspor: {e}")
+                    import traceback
+                    st.error(traceback.format_exc())
+
 # Layout Streamlit
 st.title("📋 Daftar Barang & Input Petugas")
 
@@ -297,7 +413,6 @@ with col2:
 # Simpan hasil di session_state
 if submitted:
     st.session_state["barang_dipilih"] = barang_dipilih
-    st.session_state["show_preview"] = False
 barang_dipilih = st.session_state.get("barang_dipilih", barang_dipilih)
 
 # Rekapitulasi
@@ -325,7 +440,7 @@ if not df_pilih.empty:
 else:
     st.info("Belum ada barang yang dipilih (isi kuantitas > 0).")
 
-# Tombol Export & Preview
+# Tombol Export
 st.markdown("---")
 st.subheader("📤 Export Rekap ke Google Sheets")
 
@@ -335,121 +450,4 @@ if st.button("📥 Export ke Google Sheets", type="primary"):
     elif df_pilih.empty:
         st.error("⚠️ Belum ada barang yang dipilih!")
     else:
-        st.session_state["show_preview"] = True
-
-# Preview Section
-if st.session_state.get("show_preview", False):
-    st.markdown("---")
-    st.markdown("### 📋 Preview Rekap")
-    
-    # Prepare data untuk preview
-    id_display = idpel_selected if idpel_selected else ""
-    nama_dengan_id = f"{nama} ({id_display})" if id_display else f"{nama}"
-    
-    # Calculate for Vendor & Pelanggan
-    df_preview_vendor = df_pilih.copy()
-    df_preview_pelanggan = df_pilih.copy()
-    
-    # Update harga untuk preview vendor
-    for i in range(len(df_preview_vendor)):
-        item_name = df_preview_vendor.iloc[i]["Rincian"]
-        qty = df_preview_vendor.iloc[i]["Vol"]
-        harga_v = harga_vendor.get(item_name, 0)
-        df_preview_vendor.loc[df_preview_vendor.index[i], "Harga Satuan Material"] = harga_v
-        df_preview_vendor.loc[df_preview_vendor.index[i], "Harga Total"] = qty * harga_v
-    
-    subtotal_vendor = df_preview_vendor["Harga Total"].sum()
-    ppn_vendor = subtotal_vendor * 0.11
-    total_vendor = subtotal_vendor + ppn_vendor
-    
-    subtotal_pelanggan = df_pilih["Harga Total"].sum()
-    ppn_pelanggan = subtotal_pelanggan * 0.11
-    total_pelanggan = subtotal_pelanggan + ppn_pelanggan
-    
-    # Tabs
-    tab1, tab2 = st.tabs(["📦 VENDOR", "👥 PELANGGAN"])
-    
-    with tab1:
-        st.markdown("#### REKAP HARGA PEKERJAAN - VENDOR")
-        st.markdown(f"**PEKERJAAN:** {pekerjaan or '-'}")
-        st.markdown(f"**NAMA:** {nama_dengan_id}")
-        st.markdown(f"**LOKASI:** {lokasi}")
-        st.markdown(f"**ULP:** {ulp or '-'}")
-        st.markdown(f"**NO SPK:** {no_spk or '-'}")
-        st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
-        st.write("---")
-        st.dataframe(df_preview_vendor[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True)
-        st.write(f"💰 **Subtotal:** Rp {subtotal_vendor:,.2f}")
-        st.write(f"💸 **PPN (11%):** Rp {ppn_vendor:,.2f}")
-        st.success(f"🏷 **TOTAL BIAYA: Rp {total_vendor:,.2f}**")
-    
-    with tab2:
-        st.markdown("#### REKAP HARGA PEKERJAAN - PELANGGAN")
-        st.markdown(f"**PEKERJAAN:** {pekerjaan or '-'}")
-        st.markdown(f"**NAMA:** {nama_dengan_id}")
-        st.markdown(f"**LOKASI:** {lokasi}")
-        st.markdown(f"**ULP:** {ulp or '-'}")
-        st.markdown(f"**NO SPK:** {no_spk or '-'}")
-        st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
-        st.write("---")
-        st.dataframe(df_pilih[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True)
-        st.write(f"💰 **Subtotal:** Rp {subtotal_pelanggan:,.2f}")
-        st.write(f"💸 **PPN (11%):** Rp {ppn_pelanggan:,.2f}")
-        st.success(f"🏷 **TOTAL BIAYA: Rp {total_pelanggan:,.2f}**")
-    
-    # Action buttons
-    st.write("---")
-    col_btn1, col_btn2 = st.columns([1, 2])
-    
-    with col_btn1:
-        if st.button("🚫 Batal", use_container_width=True):
-            st.session_state["show_preview"] = False
-            st.rerun()
-    
-    with col_btn2:
-        if st.button("✅ Konfirmasi & Export", type="primary", use_container_width=True):
-            meta = {
-                "Pekerjaan": pekerjaan or "-",
-                "Nama": nama_dengan_id or "-",
-                "Lokasi": lokasi or "-",
-                "ULP": ulp or "-",
-                "No SPK": no_spk or "-",
-                "Vendor": vendor or "-"
-            }
-            
-            now = now_jakarta().strftime("%Y%m%d_%H%M")
-            safe_name = str(nama).replace("/", "-").replace("\\", "-")
-            title_vendor = f"REKAP {safe_name} - {now}_Vendor"
-            title_pelanggan = f"REKAP {safe_name} - {now}_Pelanggan"
-            
-            with st.spinner("Menulis dua rekapan (Vendor & Pelanggan) ke Google Sheets..."):
-                try:
-                    from export_rekap_sheets import export_rekap_pair
-                    pair_info = export_rekap_pair(
-                        spreadsheet_id=SPREADSHEET_ID,
-                        base_sheet_title_vendor=title_vendor,
-                        base_sheet_title_pelanggan=title_pelanggan,
-                        meta=meta,
-                        df_pilih=df_pilih,
-                        idpel=idpel_selected,
-                        gid=GID,
-                    )
-                    
-                    st.session_state["show_preview"] = False
-                    
-                    st.success(
-                        f"✅ Berhasil membuat: **{pair_info['vendor']['sheet_title']}** dan "
-                        f"**{pair_info['pelanggan']['sheet_title']}**"
-                    )
-                    
-                    survey_result = pair_info.get("survey_result", {})
-                    if survey_result.get("success", False):
-                        st.info(f"📅 {survey_result.get('message', 'Tanggal Survey berhasil diperbarui')}")
-                    else:
-                        st.warning(f"⚠️ Tanggal Survey gagal diperbarui: {survey_result.get('message', 'Unknown error')}")
-                    
-                    st.balloons()
-                except Exception as e:
-                    st.error(f"❌ Gagal mengekspor: {e}")
-                    import traceback
-                    st.error(traceback.format_exc())
+        show_preview_dialog(df_pilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor)
