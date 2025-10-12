@@ -115,7 +115,7 @@ harga_pelanggan = {
     "Twisted Cable 2x10 mm² - Al": 0,
 }
 
-# Data barang dengan harga PELANGGAN (untuk preview di website)
+# Data barang dengan harga PELANGGAN (untuk input)
 data_barang = [
     {"nama": "Jasa Kegiatan Geser APP", "SAT": "PLG", "harga": 103230},
     {"nama": "Jasa Kegiatan Geser Perubahan Situasi SR", "SAT": "PLG", "harga": 87690},
@@ -137,7 +137,12 @@ semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga":
 
 # Dialog untuk preview
 @st.dialog("📋 Preview Rekap", width="large")
-def show_preview_dialog(df_pilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor):
+def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor):
+    if not barang_dipilih:
+        st.warning("Tidak ada barang yang dipilih.")
+        return
+    
+    df_pilih = pd.DataFrame(barang_dipilih)
     id_display = idpel_selected if idpel_selected else ""
     nama_dengan_id = f"{nama} ({id_display})" if id_display else f"{nama}"
     
@@ -384,70 +389,37 @@ with col1:
 barang_dipilih = []
 with col2:
     st.subheader("🛠 Input Kuantitas Barang")
-    with st.form("form_barang"):
-        for idx, barang in enumerate(semua_barang):
-            if str(barang.get("nama", "")).startswith("----"):
-                st.markdown("---")
-                continue
+    for idx, barang in enumerate(semua_barang):
+        if str(barang.get("nama", "")).startswith("----"):
+            st.markdown("---")
+            continue
 
-            key_name = f"qty_{idx}"
-            sat_label = barang.get("SAT", "")
-            qty = st.number_input(
-                f"{barang.get('nama', 'Item')} ({sat_label})",
-                min_value=0,
-                step=1,
-                key=key_name
-            )
-            if qty and qty > 0:
-                harga = float(barang.get("harga", 0) or 0)
-                total = qty * harga
-                barang_dipilih.append({
-                    "Rincian": barang.get("nama", ""),
-                    "SAT": sat_label,
-                    "Vol": int(qty),
-                    "Harga Satuan Material": harga,
-                    "Harga Total": total
-                })
-        submitted = st.form_submit_button("Hitung Rekap")
-
-# Simpan hasil di session_state
-if submitted:
-    st.session_state["barang_dipilih"] = barang_dipilih
-barang_dipilih = st.session_state.get("barang_dipilih", barang_dipilih)
-
-# Rekapitulasi
-st.subheader("📦 Rekapitulasi")
-df_pilih = pd.DataFrame(barang_dipilih) if barang_dipilih else pd.DataFrame()
-
-if not df_pilih.empty:
-    st.markdown(f"**PEKERJAAN:** {pekerjaan or '-'}")
-    st.markdown(f"**NAMA:** {nama} ({idpel_selected})")
-    st.markdown(f"**LOKASI PEKERJAAN:** {lokasi}")
-    st.markdown(f"**ULP:** {ulp or '-'}")
-    st.markdown(f"**NO SPK:** {no_spk or '-'}")
-    st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
-
-    st.write("---")
-    st.dataframe(df_pilih, use_container_width=True)
-
-    subtotal = df_pilih["Harga Total"].sum()
-    ppn = subtotal * 0.11
-    total_biaya = subtotal + ppn
-
-    st.write(f"💰 **Subtotal:** Rp {subtotal:,.2f}")
-    st.write(f"💸 **PPN (11%):** Rp {ppn:,.2f}")
-    st.success(f"🏷 **TOTAL BIAYA SETELAH PPN: Rp {total_biaya:,.2f}**")
-else:
-    st.info("Belum ada barang yang dipilih (isi kuantitas > 0).")
+        key_name = f"qty_{idx}"
+        sat_label = barang.get("SAT", "")
+        qty = st.number_input(
+            f"{barang.get('nama', 'Item')} ({sat_label})",
+            min_value=0,
+            step=1,
+            key=key_name
+        )
+        if qty and qty > 0:
+            harga = float(barang.get("harga", 0) or 0)
+            total = qty * harga
+            barang_dipilih.append({
+                "Rincian": barang.get("nama", ""),
+                "SAT": sat_label,
+                "Vol": int(qty),
+                "Harga Satuan Material": harga,
+                "Harga Total": total
+            })
 
 # Tombol Export
 st.markdown("---")
-st.subheader("📤 Export Rekap ke Google Sheets")
 
-if st.button("📥 Export ke Google Sheets", type="primary"):
+if st.button("📥 Export ke Google Sheets", type="primary", use_container_width=True):
     if not idpel_selected:
         st.error("⚠️ Silakan pilih ID Pelanggan terlebih dahulu!")
-    elif df_pilih.empty:
+    elif not barang_dipilih:
         st.error("⚠️ Belum ada barang yang dipilih!")
     else:
-        show_preview_dialog(df_pilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor)
+        show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor)
