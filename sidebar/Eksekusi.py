@@ -88,24 +88,24 @@ def update_tanggal_eksekusi(spreadsheet_id: str, gid: str, idpel: str, tanggal: 
         return {"success": False, "message": f"Error: {str(e)}"}
 
 # === UI ===
-st.title("📸 Upload Dokumentasi Eksekusi")
+st.title("Upload Dokumentasi Eksekusi")
 
 df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
 
-st.subheader("🔎 Pilih Pelanggan")
+st.subheader("Pilih Pelanggan")
 
 col_filter1, col_filter2 = st.columns(2)
 
 with col_filter1:
     search_id = st.text_input(
-        "🔍 Cari ID Pelanggan:",
+        "Cari ID Pelanggan:",
         placeholder="Contoh: 513130665162",
         key="search_id_eksekusi"
     )
 
 with col_filter2:
     search_nama = st.text_input(
-        "👤 Cari Nama:",
+        "Cari Nama:",
         placeholder="Contoh: Sofia",
         key="search_nama_eksekusi"
     )
@@ -132,7 +132,7 @@ if not df_filtered.empty:
             filtered_options.append(f"{pid} ({pnama})")
 
 pilihan = st.selectbox(
-    "🔑 Pilih ID Pelanggan:",
+    "Pilih ID Pelanggan:",
     filtered_options,
     key="select_idpel_eksekusi"
 )
@@ -147,7 +147,7 @@ def extract_id(opt: str) -> str:
 idpel_selected = extract_id(pilihan)
 
 if idpel_selected:
-    st.success(f"✅ Terpilih: {pilihan}")
+    st.success(f"Terpilih: {pilihan}")
     
     df_selected = df_sheets[df_sheets["ID Pelanggan"].astype(str) == idpel_selected]
     if not df_selected.empty:
@@ -159,18 +159,18 @@ if idpel_selected:
     
     st.markdown("---")
     
-    st.subheader("📋 Input Data Eksekusi")
+    st.subheader("Input Data Eksekusi")
     
     with st.form("form_eksekusi"):
         tanggal_eksekusi = st.date_input(
-            "📅 Tanggal Eksekusi:",
+            "Tanggal Eksekusi:",
             value=date.today(),
             key="tanggal_eksekusi_input",
             format="DD/MM/YYYY"
         )
         
         uploaded_files = st.file_uploader(
-            "📸 Upload Foto Dokumentasi (JPG/PNG, minimal 1 foto):",
+            "Upload Foto Dokumentasi (JPG/PNG, minimal 1 foto):",
             type=["jpg", "jpeg", "png"],
             accept_multiple_files=True,
             key="upload_foto_eksekusi"
@@ -183,11 +183,11 @@ if idpel_selected:
                 with cols[idx % 4]:
                     st.image(file, caption=file.name, width=150)
         
-        submitted = st.form_submit_button("📤 Submit Data Eksekusi")
+        submitted = st.form_submit_button("Submit Data Eksekusi")
     
     if submitted:
         if not uploaded_files:
-            st.error("⚠️ Minimal 1 foto harus diupload!")
+            st.error("Minimal 1 foto harus diupload.")
         else:
             with st.spinner("Mengupload foto ke Google Drive dan update data..."):
                 try:
@@ -231,19 +231,19 @@ if idpel_selected:
                     )
                     
                     if update_result["success"]:
-                        st.success(f"✅ Berhasil upload {len(uploaded_files)} foto dan update tanggal eksekusi!")
-                        st.info(f"📅 Tanggal Eksekusi: {tanggal_str}")
-                        st.info(f"📁 Foto tersimpan di: Foto Eksekusi/{idpel_selected}/")
+                        st.success(f"Berhasil upload {len(uploaded_files)} foto dan update tanggal eksekusi.")
+                        st.info(f"Tanggal Eksekusi: {tanggal_str}")
+                        st.info(f"Foto tersimpan di: Foto Eksekusi/{idpel_selected}/")
                         
-                        with st.expander("📋 Detail Foto yang Diupload"):
+                        with st.expander("Detail Foto yang Diupload"):
                             for item in uploaded_links:
                                 st.write(f"- [{item['name']}]({item['link']})")
                         
                         st.balloons()
                     else:
-                        st.error(f"❌ Upload foto berhasil, tapi gagal update sheets: {update_result['message']}")
+                        st.error(f"Upload foto berhasil, tapi gagal update sheets: {update_result['message']}")
                     
                 except Exception as e:
-                    st.error(f"❌ Terjadi kesalahan: {str(e)}")
+                    st.error(f"Terjadi kesalahan: {str(e)}")
                     import traceback
                     st.error(traceback.format_exc())

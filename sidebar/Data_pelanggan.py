@@ -39,31 +39,33 @@ except Exception as e:
     df = pd.DataFrame()
 
 if not df.empty:
-    # --- Tambahkan blok aman Arrow di bawah ini ---
+    # Data cleaning untuk Arrow compatibility
     df = df.fillna("")
-    # khusus kolom yang bermasalah
+    
+    # Khusus kolom yang bermasalah
     if "Tarif / Daya" in df.columns:
         df["Tarif / Daya"] = df["Tarif / Daya"].astype(str)
 
-    # (opsional kuat) jadikan semua kolom object -> string supaya aman di Arrow
+    # Jadikan semua kolom object -> string supaya aman di Arrow
     for c in df.columns:
         if df[c].dtype == "object":
             df[c] = df[c].astype(str)
-    # --- sampai sini ---
 
+    # Format link foto KTP
     if "Foto KTP" in df.columns:
         def ktp_link(v):
             v = str(v).strip()
             if v and v.lower() not in ["nan", "none", ""]:
-                return f'<a href="{v}" target="_blank">📷 Lihat KTP</a>'
+                return f'<a href="{v}" target="_blank">Lihat KTP</a>'
             return ""
         df["Foto KTP"] = df["Foto KTP"].apply(ktp_link)
 
+    # Visualisasi chart
     if "Tarif / Daya" in df.columns:
         daya_count = df["Tarif / Daya"].value_counts().reset_index()
         daya_count.columns = ["Tarif / Daya", "Jumlah Pengguna"]
 
-        st.subheader("📈 Jumlah Pengguna berdasarkan Daya")
+        st.subheader("Jumlah Pengguna berdasarkan Daya")
         chart = (
             alt.Chart(data=daya_count)
             .mark_bar()
@@ -77,7 +79,7 @@ if not df.empty:
     else:
         st.warning("Kolom 'Tarif / Daya' tidak ditemukan dalam data.")
 
-    st.subheader("📊 Data dari Google Sheets")
+    st.subheader("Data dari Google Sheets")
     st.write(df.to_html(escape=False, index=False), unsafe_allow_html=True)
 else:
     st.info("Belum ada data untuk ditampilkan.")

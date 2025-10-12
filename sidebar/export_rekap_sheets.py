@@ -154,7 +154,7 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
                 break
         
         if tanggal_survey_col is None:
-            return {"success": False, "message": f"Kolom 'Tanggal Survey' tidak ditemukan", "row": 0, "col": 0}
+            return {"success": False, "message": "Kolom 'Tanggal Survey' tidak ditemukan", "row": 0, "col": 0}
         
         id_pelanggan_col = None
         for idx, col_name in enumerate(header):
@@ -211,8 +211,8 @@ def export_rekap_to_sheet(
     
     if template_ws is None:
         raise RuntimeError(
-            f"Template '{template_title}' tidak ditemukan!\n"
-            f"Available sheets: {', '.join(all_sheets)}"
+            f"Template '{template_title}' tidak ditemukan. "
+            f"Sheets tersedia: {', '.join(all_sheets)}"
         )
     
     template_id = template_ws.id

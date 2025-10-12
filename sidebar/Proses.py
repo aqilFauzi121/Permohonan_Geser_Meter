@@ -136,7 +136,7 @@ data_barang_tambahan = [
 semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga": 0}] + data_barang_tambahan
 
 # Dialog untuk preview
-@st.dialog("📋 Preview Rekap", width="large")
+@st.dialog("Preview Rekap", width="large")
 def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor):
     if not barang_dipilih:
         st.warning("Tidak ada barang yang dipilih.")
@@ -167,7 +167,7 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
     total_pelanggan = subtotal_pelanggan + ppn_pelanggan
     
     # Tabs
-    tab1, tab2 = st.tabs(["📦 VENDOR", "👥 PELANGGAN"])
+    tab1, tab2 = st.tabs(["VENDOR", "PELANGGAN"])
     
     with tab1:
         st.markdown("#### REKAP HARGA PEKERJAAN - VENDOR")
@@ -179,9 +179,9 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
         st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
         st.write("---")
         st.dataframe(df_preview_vendor[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
-        st.write(f"💰 **Subtotal:** Rp {subtotal_vendor:,.2f}")
-        st.write(f"💸 **PPN (11%):** Rp {ppn_vendor:,.2f}")
-        st.success(f"🏷 **TOTAL BIAYA: Rp {total_vendor:,.2f}**")
+        st.write(f"**Subtotal:** Rp {subtotal_vendor:,.2f}")
+        st.write(f"**PPN (11%):** Rp {ppn_vendor:,.2f}")
+        st.success(f"**TOTAL BIAYA: Rp {total_vendor:,.2f}**")
     
     with tab2:
         st.markdown("#### REKAP HARGA PEKERJAAN - PELANGGAN")
@@ -193,20 +193,20 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
         st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
         st.write("---")
         st.dataframe(df_pilih[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
-        st.write(f"💰 **Subtotal:** Rp {subtotal_pelanggan:,.2f}")
-        st.write(f"💸 **PPN (11%):** Rp {ppn_pelanggan:,.2f}")
-        st.success(f"🏷 **TOTAL BIAYA: Rp {total_pelanggan:,.2f}**")
+        st.write(f"**Subtotal:** Rp {subtotal_pelanggan:,.2f}")
+        st.write(f"**PPN (11%):** Rp {ppn_pelanggan:,.2f}")
+        st.success(f"**TOTAL BIAYA: Rp {total_pelanggan:,.2f}**")
     
     # Action buttons
     st.write("---")
     col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
     
     with col_btn1:
-        if st.button("🚫 Batal", use_container_width=True, key="btn_cancel"):
+        if st.button("Batal", use_container_width=True, key="btn_cancel"):
             st.rerun()
     
     with col_btn3:
-        if st.button("✅ Konfirmasi & Export", type="primary", use_container_width=True, key="btn_export"):
+        if st.button("Konfirmasi & Export", type="primary", use_container_width=True, key="btn_export"):
             meta = {
                 "Pekerjaan": pekerjaan or "-",
                 "Nama": nama_dengan_id or "-",
@@ -221,7 +221,7 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
             title_vendor = f"REKAP {safe_name} - {now}_Vendor"
             title_pelanggan = f"REKAP {safe_name} - {now}_Pelanggan"
             
-            with st.spinner("Menulis dua rekapan (Vendor & Pelanggan) ke Google Sheets..."):
+            with st.spinner("Menulis data rekap ke Google Sheets..."):
                 try:
                     from export_rekap_sheets import export_rekap_pair
                     pair_info = export_rekap_pair(
@@ -235,15 +235,15 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
                     )
                     
                     st.success(
-                        f"✅ Berhasil membuat: **{pair_info['vendor']['sheet_title']}** dan "
+                        f"Berhasil membuat rekap: **{pair_info['vendor']['sheet_title']}** dan "
                         f"**{pair_info['pelanggan']['sheet_title']}**"
                     )
                     
                     survey_result = pair_info.get("survey_result", {})
                     if survey_result.get("success", False):
-                        st.info(f"📅 {survey_result.get('message', 'Tanggal Survey berhasil diperbarui')}")
+                        st.info(f"Tanggal Survey: {survey_result.get('message', 'Berhasil diperbarui')}")
                     else:
-                        st.warning(f"⚠️ Tanggal Survey gagal diperbarui: {survey_result.get('message', 'Unknown error')}")
+                        st.warning(f"Tanggal Survey gagal diperbarui: {survey_result.get('message', 'Unknown error')}")
                     
                     st.balloons()
                     
@@ -252,15 +252,15 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
                     time.sleep(2)
                     st.rerun()
                 except Exception as e:
-                    st.error(f"❌ Gagal mengekspor: {e}")
+                    st.error(f"Gagal mengekspor data: {e}")
                     import traceback
                     st.error(traceback.format_exc())
 
 # Layout Streamlit
-st.title("📋 Daftar Barang & Input Petugas")
+st.title("Daftar Barang & Input Petugas")
 
 # Filter: Tanggal + Search ID/Nama
-st.subheader("🔎 Filter & Pilih Pelanggan")
+st.subheader("Filter & Pilih Pelanggan")
 
 # Konversi Timestamp ke Date
 if "Timestamp" in df_sheets.columns:
@@ -286,7 +286,7 @@ with col_filter1:
         date_options = ["Semua Tanggal"] + [str(d) for d in available_dates]
         
         selected_date = st.selectbox(
-            "📅 Filter Tanggal:",
+            "Filter Tanggal:",
             date_options,
             key="filter_date"
         )
@@ -296,7 +296,7 @@ with col_filter1:
 
 with col_filter2:
     search_text = st.text_input(
-        "🔍 Cari IDPEL/Nama Pelanggan:",
+        "Cari ID Pelanggan atau Nama:",
         placeholder="Contoh: 513130665162 atau Sofia",
         key="filter_search"
     )
@@ -318,7 +318,7 @@ if search_text.strip():
         df_filtered = df_filtered[mask_id]
 
 # Buat dropdown dari hasil filter
-filtered_options = ["- Pilih ID -"]
+filtered_options = ["- Pilih ID Pelanggan -"]
 if not df_filtered.empty:
     for _, row in df_filtered.iterrows():
         pid = str(row["ID Pelanggan"]).strip()
@@ -328,25 +328,25 @@ if not df_filtered.empty:
     
     result_count = len(filtered_options) - 1
     if result_count > 0:
-        st.info(f"✅ Ditemukan **{result_count}** pelanggan yang sesuai filter")
+        st.info(f"Ditemukan {result_count} pelanggan yang sesuai filter")
     else:
-        st.warning("⚠️ Tidak ada pelanggan yang cocok dengan filter. Coba ubah filter.")
+        st.warning("Tidak ada pelanggan yang cocok dengan filter. Silakan ubah filter.")
 else:
-    st.warning("⚠️ Tidak ada pelanggan yang cocok dengan filter. Coba ubah filter.")
+    st.warning("Tidak ada pelanggan yang cocok dengan filter. Silakan ubah filter.")
 
 # Dropdown final
 if len(filtered_options) > 1:
     pilihan_dropdown = st.selectbox(
-        "🔑 Pilih ID Pelanggan:",
+        "Pilih ID Pelanggan:",
         filtered_options,
         key="select_idpel"
     )
 else:
-    pilihan_dropdown = "- Pilih ID -"
-    st.info("💡 Silakan gunakan filter di atas untuk mencari pelanggan")
+    pilihan_dropdown = "- Pilih ID Pelanggan -"
+    st.info("Silakan gunakan filter di atas untuk mencari pelanggan")
 
 def extract_id(opt: str) -> str:
-    if not opt or opt == "- Pilih ID -":
+    if not opt or opt == "- Pilih ID Pelanggan -":
         return ""
     if " (" in opt:
         return opt.split(" (", 1)[0].strip()
@@ -366,7 +366,7 @@ with col1:
     vendor = ""
 
     if idpel_selected:
-        st.subheader("👤 Data Pelanggan Terpilih")
+        st.subheader("Data Pelanggan Terpilih")
         df_selected = df_sheets[df_sheets["ID Pelanggan"].astype(str) == idpel_selected]
         if not df_selected.empty:
             first_row = df_selected.iloc[0]
@@ -378,17 +378,17 @@ with col1:
         st.markdown(f"**NAMA:** {nama}")
         st.markdown(f"**LOKASI PEKERJAAN:** {lokasi}")
 
-        pekerjaan = st.text_input("📌 Pekerjaan", key="pekerjaan_input")
-        ulp = st.text_input("🏢 ULP", key="ulp_input")
-        no_spk = st.text_input("📄 No SPK", key="no_spk_input")
-        vendor = st.text_input("🏗 Vendor Pelaksana", key="vendor_input")
+        pekerjaan = st.text_input("Pekerjaan", key="pekerjaan_input")
+        ulp = st.text_input("ULP", key="ulp_input")
+        no_spk = st.text_input("No SPK", key="no_spk_input")
+        vendor = st.text_input("Vendor Pelaksana", key="vendor_input")
     else:
         st.info("Silakan pilih ID Pelanggan untuk melihat detail.")
 
 # Input barang
 barang_dipilih = []
 with col2:
-    st.subheader("🛠 Input Kuantitas Barang")
+    st.subheader("Input Kuantitas Barang")
     for idx, barang in enumerate(semua_barang):
         if str(barang.get("nama", "")).startswith("----"):
             st.markdown("---")
@@ -416,10 +416,10 @@ with col2:
 # Tombol Export
 st.markdown("---")
 
-if st.button("📥 Export ke Google Sheets", type="primary", use_container_width=True):
+if st.button("Export ke Google Sheets", type="primary", use_container_width=True):
     if not idpel_selected:
-        st.error("⚠️ Silakan pilih ID Pelanggan terlebih dahulu!")
+        st.error("Silakan pilih ID Pelanggan terlebih dahulu.")
     elif not barang_dipilih:
-        st.error("⚠️ Belum ada barang yang dipilih!")
+        st.error("Belum ada barang yang dipilih.")
     else:
         show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor)
