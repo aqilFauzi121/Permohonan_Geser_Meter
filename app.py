@@ -108,7 +108,7 @@ else:
 st.sidebar.markdown(
     "<a href='https://maps.app.goo.gl/CnhdCBrhz3mihieL9' "
     "style='text-decoration:none; color:#87ceeb !important; font-size:12px; display:block; margin-top:8px;' "
-    "target='_blank'>📍 Jl. Pandan No.15, Gading Kasri, Klojen</a>",
+    "target='_blank'>Jl. Pandan No.15, Gading Kasri, Klojen</a>",
     unsafe_allow_html=True
 )
 
@@ -116,7 +116,7 @@ st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 
 # === SIDEBAR: Menu Navigation ===
 st.sidebar.markdown(
-    "<p style='font-size:14px; font-weight:bold; margin-bottom:8px; color:#ffd700;'>📋 Pilih Menu</p>", 
+    "<p style='font-size:14px; font-weight:bold; margin-bottom:8px; color:#ffd700;'>Menu Navigasi</p>", 
     unsafe_allow_html=True
 )
 
@@ -165,12 +165,12 @@ else:
 # === SIDEBAR: Info Akses ===
 st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 st.sidebar.markdown(
-    "<p style='color:#ffd700; font-size:14px; margin-bottom:5px; font-weight:bold;'>⏰ Info Akses</p>",
+    "<p style='color:#ffd700; font-size:14px; margin-bottom:5px; font-weight:bold;'>Informasi Akses</p>",
     unsafe_allow_html=True
 )
 st.sidebar.markdown(
-    f"<p style='color:#ffffff; font-size:13px; margin:3px 0;'>📅 {now_jakarta().strftime('%d %B %Y')}</p>"
-    f"<p style='color:#ffffff; font-size:13px; margin:3px 0;'>🕐 {now_jakarta().strftime('%H:%M:%S WIB')}</p>",
+    f"<p style='color:#ffffff; font-size:13px; margin:3px 0;'>Tanggal: {now_jakarta().strftime('%d %B %Y')}</p>"
+    f"<p style='color:#ffffff; font-size:13px; margin:3px 0;'>Waktu: {now_jakarta().strftime('%H:%M:%S WIB')}</p>",
     unsafe_allow_html=True
 )
 
