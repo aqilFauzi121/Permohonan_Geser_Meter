@@ -192,4 +192,3 @@ else:
         "<p style='color:#ffffff; font-size:11px;'>Developed by Universitas Brawijaya</p>",
         unsafe_allow_html=True
     )
-
