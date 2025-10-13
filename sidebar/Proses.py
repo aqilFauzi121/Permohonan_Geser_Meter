@@ -1,7 +1,7 @@
 import os
 import sys
 import traceback
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict
 from datetime import datetime
 
 import streamlit as st
@@ -39,6 +39,7 @@ except Exception:
 try:
     SPREADSHEET_ID = str(st.secrets["SHEET_ID"])
     GID = str(st.secrets["SHEET_GID"])
+    MASTER_HARGA_SHEET = str(st.secrets.get("MASTER_HARGA_SHEET", "Harga"))
 except Exception as e:
     st.error(f"Konfigurasi secrets tidak lengkap: {e}")
     st.stop()
@@ -55,6 +56,15 @@ def load_sheet_by_gid(spreadsheet_id, gid):
         target = sh.sheet1
     return target
 
+def load_sheet_by_name(spreadsheet_id, sheet_name):
+    """Load worksheet by name"""
+    gc = get_gspread_client()
+    sh = gc.open_by_key(spreadsheet_id)
+    try:
+        return sh.worksheet(sheet_name)
+    except Exception:
+        return None
+
 @st.cache_data(ttl=180, show_spinner=False)
 def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
     ws = load_sheet_by_gid(spreadsheet_id, gid)
@@ -62,8 +72,91 @@ def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
     df = pd.DataFrame(data).fillna("")
     return df
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
+    """
+    Fetch harga dari Google Sheets.
+    Returns: (harga_vendor, harga_pelanggan, is_from_sheets)
+    """
+    # Fallback hardcoded prices
+    harga_vendor_fallback = {
+        "Jasa Kegiatan Geser APP": 93000.0,
+        "Jasa Kegiatan Geser Perubahan Situasi SR": 79000.0,
+        "Service wedge clamp 2/4 x 6/10 mm": 3990.0,
+        "Strainhook / ekor babi": 8000.0,
+        "Imundex klem": 454.0,
+        "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover": 11999.0,
+        "Paku Beton": 74.0,
+        "Pole Bracket 3-9\"": 36823.0,
+        "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": 29400.0,
+        "Segel Plastik": 1754.0,
+        "Twisted Cable 2 x 10 mm² - Al": 4339.0,
+        "Asuransi": 0.0,
+        "Twisted Cable 2x10 mm² - Al": 0.0,
+    }
+    
+    harga_pelanggan_fallback = {
+        "Jasa Kegiatan Geser APP": 103230.0,
+        "Jasa Kegiatan Geser Perubahan Situasi SR": 87690.0,
+        "Service wedge clamp 2/4 x 6/10 mm": 4428.90,
+        "Strainhook / ekor babi": 8880.00,
+        "Imundex klem": 503.94,
+        "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover": 13318.89,
+        "Paku Beton": 82.14,
+        "Pole Bracket 3-9\"": 40873.53,
+        "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": 32634.00,
+        "Segel Plastik": 1946.94,
+        "Twisted Cable 2 x 10 mm² - Al": 4816.29,
+        "Asuransi": 0.0,
+        "Twisted Cable 2x10 mm² - Al": 0.0,
+    }
+    
+    try:
+        ws = load_sheet_by_name(spreadsheet_id, sheet_name)
+        if ws is None:
+            return harga_vendor_fallback, harga_pelanggan_fallback, False
+        
+        data = ws.get_all_records()
+        df = pd.DataFrame(data)
+        
+        # Validasi kolom yang diperlukan
+        required_cols = ["Nama Barang", "Harga Vendor", "Harga Pelanggan"]
+        if not all(col in df.columns for col in required_cols):
+            return harga_vendor_fallback, harga_pelanggan_fallback, False
+        
+        # Build dictionaries
+        harga_vendor = {}
+        harga_pelanggan = {}
+        
+        for _, row in df.iterrows():
+            nama = str(row["Nama Barang"]).strip()
+            if not nama:
+                continue
+            
+            try:
+                harga_v = float(row["Harga Vendor"]) if pd.notna(row["Harga Vendor"]) else 0.0
+                harga_p = float(row["Harga Pelanggan"]) if pd.notna(row["Harga Pelanggan"]) else 0.0
+                harga_vendor[nama] = harga_v
+                harga_pelanggan[nama] = harga_p
+            except (ValueError, TypeError):
+                continue
+        
+        # Jika berhasil load data, return
+        if harga_vendor and harga_pelanggan:
+            return harga_vendor, harga_pelanggan, True
+        
+        # Jika kosong, fallback
+        return harga_vendor_fallback, harga_pelanggan_fallback, False
+        
+    except Exception:
+        # Jika error, fallback
+        return harga_vendor_fallback, harga_pelanggan_fallback, False
+
 # Load data pelanggan (cached)
 df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
+
+# Load harga dari sheets
+harga_vendor, harga_pelanggan, is_from_sheets = fetch_master_harga(SPREADSHEET_ID, MASTER_HARGA_SHEET)
 
 # Siapkan mapping ID -> Nama
 id_to_name = {}
@@ -81,58 +174,59 @@ if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
             if str(row.get("ID Pelanggan", "")).strip() != ""
         }
 
-# Harga VENDOR (base price)
-harga_vendor = {
-    "Jasa Kegiatan Geser APP": 93000,
-    "Jasa Kegiatan Geser Perubahan Situasi SR": 79000,
-    "Service wedge clamp 2/4 x 6/10 mm": 3990,
-    "Strainhook / ekor babi": 8000,
-    "Imundex klem": 454,
-    "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover": 11999,
-    "Paku Beton": 74,
-    "Pole Bracket 3-9\"": 36823,
-    "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": 29400,
-    "Segel Plastik": 1754,
-    "Twisted Cable 2 x 10 mm² - Al": 4339,
-    "Asuransi": 0,
-    "Twisted Cable 2x10 mm² - Al": 0,
+# Build data_barang dari harga_pelanggan
+data_barang = []
+data_barang_tambahan = []
+
+# Mapping SAT untuk setiap barang
+sat_mapping = {
+    "Jasa Kegiatan Geser APP": "PLG",
+    "Jasa Kegiatan Geser Perubahan Situasi SR": "PLG",
+    "Service wedge clamp 2/4 x 6/10 mm": "B",
+    "Strainhook / ekor babi": "B",
+    "Imundex klem": "B",
+    "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover": "B",
+    "Paku Beton": "B",
+    "Pole Bracket 3-9\"": "B",
+    "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": "B",
+    "Segel Plastik": "B",
+    "Twisted Cable 2 x 10 mm² - Al": "M",
+    "Asuransi": "I",
+    "Twisted Cable 2x10 mm² - Al": "B",
 }
 
-# Harga PELANGGAN (1.11x dari vendor)
-harga_pelanggan = {
-    "Jasa Kegiatan Geser APP": 103230,
-    "Jasa Kegiatan Geser Perubahan Situasi SR": 87690,
-    "Service wedge clamp 2/4 x 6/10 mm": 4428.90,
-    "Strainhook / ekor babi": 8880.00,
-    "Imundex klem": 503.94,
-    "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover": 13318.89,
-    "Paku Beton": 82.14,
-    "Pole Bracket 3-9\"": 40873.53,
-    "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": 32634.00,
-    "Segel Plastik": 1946.94,
-    "Twisted Cable 2 x 10 mm² - Al": 4816.29,
-    "Asuransi": 0,
-    "Twisted Cable 2x10 mm² - Al": 0,
-}
+# Urutan barang utama (9 items)
+main_items = [
+    "Jasa Kegiatan Geser APP",
+    "Jasa Kegiatan Geser Perubahan Situasi SR",
+    "Service wedge clamp 2/4 x 6/10 mm",
+    "Strainhook / ekor babi",
+    "Imundex klem",
+    "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover",
+    "Paku Beton",
+    "Pole Bracket 3-9\"",
+    "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover",
+]
 
-# Data barang dengan harga PELANGGAN (untuk input)
-data_barang = [
-    {"nama": "Jasa Kegiatan Geser APP", "SAT": "PLG", "harga": 103230},
-    {"nama": "Jasa Kegiatan Geser Perubahan Situasi SR", "SAT": "PLG", "harga": 87690},
-    {"nama": "Service wedge clamp 2/4 x 6/10 mm", "SAT": "B", "harga": 4428.90},
-    {"nama": "Strainhook / ekor babi", "SAT": "B", "harga": 8880.00},
-    {"nama": "Imundex klem", "SAT": "B", "harga": 503.94},
-    {"nama": "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover", "SAT": "B", "harga": 13318.89},
-    {"nama": "Paku Beton", "SAT": "B", "harga": 82.14},
-    {"nama": "Pole Bracket 3-9\"", "SAT": "B", "harga": 40873.53},
-    {"nama": "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover", "SAT": "B", "harga": 32634.00},
+# Barang tambahan (4 items)
+additional_items = [
+    "Segel Plastik",
+    "Twisted Cable 2 x 10 mm² - Al",
+    "Asuransi",
+    "Twisted Cable 2x10 mm² - Al",
 ]
-data_barang_tambahan = [
-    {"nama": "Segel Plastik", "SAT": "B", "harga": 1946.94},
-    {"nama": "Twisted Cable 2 x 10 mm² - Al", "SAT": "M", "harga": 4816.29},
-    {"nama": "Asuransi", "harga": 0},
-    {"nama": "Twisted Cable 2x10 mm² - Al", "SAT": "B", "harga": 0},
-]
+
+# Build data_barang
+for nama in main_items:
+    harga = harga_pelanggan.get(nama, 0)
+    sat = sat_mapping.get(nama, "")
+    data_barang.append({"nama": nama, "SAT": sat, "harga": harga})
+
+for nama in additional_items:
+    harga = harga_pelanggan.get(nama, 0)
+    sat = sat_mapping.get(nama, "")
+    data_barang_tambahan.append({"nama": nama, "SAT": sat, "harga": harga})
+
 semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga": 0}] + data_barang_tambahan
 
 # Dialog untuk preview
@@ -258,6 +352,12 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
 
 # Layout Streamlit
 st.title("Daftar Barang & Input Petugas")
+
+# Info sumber harga
+if is_from_sheets:
+    st.info(f"Harga berhasil dimuat dari sheet '{MASTER_HARGA_SHEET}'. Data akan diperbarui otomatis setiap 5 menit.")
+else:
+    st.warning(f"Harga menggunakan data fallback (hardcoded). Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia dengan kolom: Nama Barang, Harga Vendor, Harga Pelanggan.")
 
 # Filter: Tanggal + Search ID/Nama
 st.subheader("Filter & Pilih Pelanggan")
