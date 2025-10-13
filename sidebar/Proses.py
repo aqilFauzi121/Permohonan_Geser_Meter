@@ -78,7 +78,6 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
     Fetch harga dari Google Sheets.
     Returns: (harga_vendor, harga_pelanggan, is_from_sheets)
     """
-    # Fallback hardcoded prices
     harga_vendor_fallback = {
         "Jasa Kegiatan Geser APP": 93000.0,
         "Jasa Kegiatan Geser Perubahan Situasi SR": 79000.0,
@@ -98,13 +97,13 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
     harga_pelanggan_fallback = {
         "Jasa Kegiatan Geser APP": 103230.0,
         "Jasa Kegiatan Geser Perubahan Situasi SR": 87690.0,
-        "Service wedge clamp 2/4 x 6/10 mm": 4428.90,
-        "Strainhook / ekor babi": 8880.00,
+        "Service wedge clamp 2/4 x 6/10 mm": 4428.9,
+        "Strainhook / ekor babi": 8880.0,
         "Imundex klem": 503.94,
         "Conn. press AL/AL type 10-16 mm2 / 10-16 mm2 + Scoot + Cover": 13318.89,
         "Paku Beton": 82.14,
         "Pole Bracket 3-9\"": 40873.53,
-        "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": 32634.00,
+        "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": 32634.0,
         "Segel Plastik": 1946.94,
         "Twisted Cable 2 x 10 mm² - Al": 4816.29,
         "Asuransi": 0.0,
