@@ -118,12 +118,10 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
         data = ws.get_all_records()
         df = pd.DataFrame(data)
         
-        # Validasi kolom yang diperlukan
         required_cols = ["Nama Barang", "Harga Vendor", "Harga Pelanggan"]
         if not all(col in df.columns for col in required_cols):
             return harga_vendor_fallback, harga_pelanggan_fallback, False
         
-        # Build dictionaries
         harga_vendor = {}
         harga_pelanggan = {}
         
@@ -140,24 +138,17 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
             except (ValueError, TypeError):
                 continue
         
-        # Jika berhasil load data, return
         if harga_vendor and harga_pelanggan:
             return harga_vendor, harga_pelanggan, True
         
-        # Jika kosong, fallback
         return harga_vendor_fallback, harga_pelanggan_fallback, False
         
     except Exception:
-        # Jika error, fallback
         return harga_vendor_fallback, harga_pelanggan_fallback, False
 
-# Load data pelanggan (cached)
 df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
-
-# Load harga dari sheets
 harga_vendor, harga_pelanggan, is_from_sheets = fetch_master_harga(SPREADSHEET_ID, MASTER_HARGA_SHEET)
 
-# Siapkan mapping ID -> Nama
 id_to_name = {}
 if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
     if "Nama" in df_sheets.columns:
@@ -173,11 +164,9 @@ if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
             if str(row.get("ID Pelanggan", "")).strip() != ""
         }
 
-# Build data_barang dari harga_pelanggan
 data_barang = []
 data_barang_tambahan = []
 
-# Mapping SAT untuk setiap barang
 sat_mapping = {
     "Jasa Kegiatan Geser APP": "PLG",
     "Jasa Kegiatan Geser Perubahan Situasi SR": "PLG",
@@ -194,7 +183,6 @@ sat_mapping = {
     "Twisted Cable 2x10 mm² - Al": "B",
 }
 
-# Urutan barang utama (9 items)
 main_items = [
     "Jasa Kegiatan Geser APP",
     "Jasa Kegiatan Geser Perubahan Situasi SR",
@@ -207,7 +195,6 @@ main_items = [
     "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover",
 ]
 
-# Barang tambahan (4 items)
 additional_items = [
     "Segel Plastik",
     "Twisted Cable 2 x 10 mm² - Al",
@@ -215,7 +202,6 @@ additional_items = [
     "Twisted Cable 2x10 mm² - Al",
 ]
 
-# Build data_barang
 for nama in main_items:
     harga = harga_pelanggan.get(nama, 0)
     sat = sat_mapping.get(nama, "")
@@ -228,7 +214,6 @@ for nama in additional_items:
 
 semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga": 0}] + data_barang_tambahan
 
-# Dialog untuk preview
 @st.dialog("Preview Rekap", width="large")
 def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor):
     if not barang_dipilih:
@@ -239,11 +224,9 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
     id_display = idpel_selected if idpel_selected else ""
     nama_dengan_id = f"{nama} ({id_display})" if id_display else f"{nama}"
     
-    # Calculate for Vendor & Pelanggan
     df_preview_vendor = df_pilih.copy()
     df_preview_pelanggan = df_pilih.copy()
     
-    # Update harga untuk preview vendor
     for i in range(len(df_preview_vendor)):
         item_name = df_preview_vendor.iloc[i]["Rincian"]
         qty = df_preview_vendor.iloc[i]["Vol"]
@@ -259,7 +242,6 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
     ppn_pelanggan = subtotal_pelanggan * 0.11
     total_pelanggan = subtotal_pelanggan + ppn_pelanggan
     
-    # Tabs
     tab1, tab2 = st.tabs(["VENDOR", "PELANGGAN"])
     
     with tab1:
@@ -290,7 +272,6 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
         st.write(f"**PPN (11%):** Rp {ppn_pelanggan:,.2f}")
         st.success(f"**TOTAL BIAYA: Rp {total_pelanggan:,.2f}**")
     
-    # Action buttons
     st.write("---")
     col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
     
@@ -340,7 +321,6 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
                     
                     st.balloons()
                     
-                    # Wait a bit then close dialog
                     import time
                     time.sleep(2)
                     st.rerun()
@@ -349,19 +329,15 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
                     import traceback
                     st.error(traceback.format_exc())
 
-# Layout Streamlit
 st.title("Daftar Barang & Input Petugas")
 
-# Info sumber harga
 if is_from_sheets:
     st.info(f"Harga berhasil dimuat dari sheet '{MASTER_HARGA_SHEET}'. Data akan diperbarui otomatis setiap 5 menit.")
 else:
     st.warning(f"Harga menggunakan data fallback (hardcoded). Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia dengan kolom: Nama Barang, Harga Vendor, Harga Pelanggan.")
 
-# Filter: Tanggal + Search ID/Nama
 st.subheader("Filter & Pilih Pelanggan")
 
-# Konversi Timestamp ke Date
 if "Timestamp" in df_sheets.columns:
     try:
         df_sheets["Date"] = pd.to_datetime(
@@ -400,7 +376,6 @@ with col_filter2:
         key="filter_search"
     )
 
-# Apply filters
 df_filtered = df_sheets.copy()
 
 if selected_date != "Semua Tanggal" and "Date" in df_sheets.columns:
@@ -416,7 +391,6 @@ if search_text.strip():
     else:
         df_filtered = df_filtered[mask_id]
 
-# Buat dropdown dari hasil filter
 filtered_options = ["- Pilih ID Pelanggan -"]
 if not df_filtered.empty:
     for _, row in df_filtered.iterrows():
@@ -433,7 +407,6 @@ if not df_filtered.empty:
 else:
     st.warning("Tidak ada pelanggan yang cocok dengan filter. Silakan ubah filter.")
 
-# Dropdown final
 if len(filtered_options) > 1:
     pilihan_dropdown = st.selectbox(
         "Pilih ID Pelanggan:",
@@ -453,7 +426,6 @@ def extract_id(opt: str) -> str:
 
 idpel_selected = extract_id(pilihan_dropdown)
 
-# Layout 2 kolom: Data Pelanggan & Input Barang
 col1, col2 = st.columns(2)
 
 with col1:
@@ -484,7 +456,6 @@ with col1:
     else:
         st.info("Silakan pilih ID Pelanggan untuk melihat detail.")
 
-# Input barang
 barang_dipilih = []
 with col2:
     st.subheader("Input Kuantitas Barang")
@@ -512,7 +483,6 @@ with col2:
                 "Harga Total": total
             })
 
-# Tombol Export
 st.markdown("---")
 
 if st.button("Export ke Google Sheets", type="primary", use_container_width=True):
