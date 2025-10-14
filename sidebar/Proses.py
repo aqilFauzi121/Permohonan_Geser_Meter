@@ -8,7 +8,6 @@ import streamlit as st
 import pandas as pd
 from auth import get_gspread_client
 
-# Timezone helper
 try:
     from zoneinfo import ZoneInfo
     def now_jakarta():
@@ -18,7 +17,6 @@ except Exception:
     def now_jakarta():
         return datetime.utcnow() + timedelta(hours=7)
 
-# Safe import of export module
 THIS_DIR = os.path.dirname(__file__)
 if THIS_DIR and THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
@@ -35,7 +33,6 @@ except Exception:
     export_rekap_to_sheet = None
     HAVE_EXPORT = False
 
-# Konfigurasi Google Sheet dari secrets
 try:
     SPREADSHEET_ID = str(st.secrets["SHEET_ID"])
     GID = str(st.secrets["SHEET_GID"])
@@ -43,6 +40,21 @@ try:
 except Exception as e:
     st.error(f"Konfigurasi secrets tidak lengkap: {e}")
     st.stop()
+
+def format_rupiah(nilai):
+    """Format number ke Rupiah dengan pemisah ribuan titik dan desimal koma"""
+    if pd.isna(nilai) or nilai == 0:
+        return "0"
+    
+    nilai_str = f"{float(nilai):,.2f}"
+    nilai_str = nilai_str.replace(",", "TEMP")
+    nilai_str = nilai_str.replace(".", ",")
+    nilai_str = nilai_str.replace("TEMP", ".")
+    
+    if nilai_str.endswith(",00"):
+        nilai_str = nilai_str[:-3]
+    
+    return nilai_str
 
 def load_sheet_by_gid(spreadsheet_id, gid):
     gc = get_gspread_client()
@@ -57,7 +69,6 @@ def load_sheet_by_gid(spreadsheet_id, gid):
     return target
 
 def load_sheet_by_name(spreadsheet_id, sheet_name):
-    """Load worksheet by name"""
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     try:
@@ -74,10 +85,6 @@ def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
-    """
-    Fetch harga dari Google Sheets.
-    Returns: (harga_vendor, harga_pelanggan, is_from_sheets)
-    """
     harga_vendor_fallback = {
         "Jasa Kegiatan Geser APP": 93000.0,
         "Jasa Kegiatan Geser Perubahan Situasi SR": 79000.0,
@@ -253,10 +260,15 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
         st.markdown(f"**NO SPK:** {no_spk or '-'}")
         st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
         st.write("---")
-        st.dataframe(df_preview_vendor[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
-        st.write(f"**Subtotal:** Rp {subtotal_vendor:,.2f}")
-        st.write(f"**PPN (11%):** Rp {ppn_vendor:,.2f}")
-        st.success(f"**TOTAL BIAYA: Rp {total_vendor:,.2f}**")
+        
+        df_vendor_display = df_preview_vendor.copy()
+        df_vendor_display["Harga Satuan Material"] = df_vendor_display["Harga Satuan Material"].apply(format_rupiah)
+        df_vendor_display["Harga Total"] = df_preview_vendor["Harga Total"].apply(format_rupiah)
+        
+        st.dataframe(df_vendor_display[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
+        st.write(f"**Subtotal:** Rp {format_rupiah(subtotal_vendor)}")
+        st.write(f"**PPN (11%):** Rp {format_rupiah(ppn_vendor)}")
+        st.success(f"**TOTAL BIAYA: Rp {format_rupiah(total_vendor)}**")
     
     with tab2:
         st.markdown("#### REKAP HARGA PEKERJAAN - PELANGGAN")
@@ -267,10 +279,15 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
         st.markdown(f"**NO SPK:** {no_spk or '-'}")
         st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
         st.write("---")
-        st.dataframe(df_pilih[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
-        st.write(f"**Subtotal:** Rp {subtotal_pelanggan:,.2f}")
-        st.write(f"**PPN (11%):** Rp {ppn_pelanggan:,.2f}")
-        st.success(f"**TOTAL BIAYA: Rp {total_pelanggan:,.2f}**")
+        
+        df_pelanggan_display = df_pilih.copy()
+        df_pelanggan_display["Harga Satuan Material"] = df_pilih["Harga Satuan Material"].apply(format_rupiah)
+        df_pelanggan_display["Harga Total"] = df_pilih["Harga Total"].apply(format_rupiah)
+        
+        st.dataframe(df_pelanggan_display[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
+        st.write(f"**Subtotal:** Rp {format_rupiah(subtotal_pelanggan)}")
+        st.write(f"**PPN (11%):** Rp {format_rupiah(ppn_pelanggan)}")
+        st.success(f"**TOTAL BIAYA: Rp {format_rupiah(total_pelanggan)}**")
     
     st.write("---")
     col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
@@ -331,10 +348,17 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
 
 st.title("Daftar Barang & Input Petugas")
 
-if is_from_sheets:
-    st.info(f"Harga berhasil dimuat dari sheet '{MASTER_HARGA_SHEET}'. Data akan diperbarui otomatis setiap 5 menit.")
-else:
-    st.warning(f"Harga menggunakan data fallback (hardcoded). Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia dengan kolom: Nama Barang, Harga Vendor, Harga Pelanggan.")
+col_info1, col_info2 = st.columns([4, 1])
+with col_info1:
+    if is_from_sheets:
+        st.info(f"Harga berhasil dimuat dari sheet '{MASTER_HARGA_SHEET}'. Data akan diperbarui otomatis setiap 5 menit.")
+    else:
+        st.warning(f"Harga menggunakan data fallback (hardcoded). Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia dengan kolom: Nama Barang, Harga Vendor, Harga Pelanggan.")
+
+with col_info2:
+    if st.button("🔄 Reload Harga", use_container_width=True, help="Reload data harga dari Google Sheets"):
+        st.cache_data.clear()
+        st.rerun()
 
 st.subheader("Filter & Pilih Pelanggan")
 
