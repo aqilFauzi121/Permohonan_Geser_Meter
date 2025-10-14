@@ -46,15 +46,26 @@ def format_rupiah(nilai):
     if pd.isna(nilai) or nilai == 0:
         return "0"
     
-    nilai_str = f"{float(nilai):,.2f}"
-    nilai_str = nilai_str.replace(",", "TEMP")
-    nilai_str = nilai_str.replace(".", ",")
-    nilai_str = nilai_str.replace("TEMP", ".")
+    nilai = float(nilai)
     
-    if nilai_str.endswith(",00"):
-        nilai_str = nilai_str[:-3]
+    is_negative = nilai < 0
+    nilai = abs(nilai)
     
-    return nilai_str
+    bagian_bulat = int(nilai)
+    bagian_desimal = nilai - bagian_bulat
+    
+    bulat_str = f"{bagian_bulat:,}".replace(",", ".")
+    
+    if bagian_desimal > 0.001:
+        desimal_str = f"{bagian_desimal:.2f}".split(".")[1]
+        hasil = f"{bulat_str},{desimal_str}"
+    else:
+        hasil = bulat_str
+    
+    if is_negative:
+        hasil = f"-{hasil}"
+    
+    return hasil
 
 def load_sheet_by_gid(spreadsheet_id, gid):
     gc = get_gspread_client()
