@@ -73,6 +73,21 @@ st.markdown("""
         margin-bottom: 0.8rem;
         border-color: #4a6fa5;
     }
+    
+    [data-testid="stSidebar"] button[kind="secondary"] {
+        background-color: #2c5282 !important;
+        color: #ffffff !important;
+        border: 1px solid #4a6fa5 !important;
+    }
+    
+    [data-testid="stSidebar"] button[kind="secondary"]:hover {
+        background-color: #3d6aa3 !important;
+        border-color: #5b8bc9 !important;
+    }
+    
+    [data-testid="stSidebar"] button[kind="secondary"] p {
+        color: #ffffff !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
