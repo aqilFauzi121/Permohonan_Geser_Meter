@@ -1,7 +1,7 @@
 import os
 import sys
 import traceback
-from typing import Optional, Callable, Dict
+from typing import Optional, Callable
 from datetime import datetime
 
 import streamlit as st
@@ -42,12 +42,10 @@ except Exception as e:
     st.stop()
 
 def format_rupiah(nilai):
-    """Format number ke Rupiah dengan pemisah ribuan titik dan desimal koma"""
     if pd.isna(nilai) or nilai == 0:
         return "0"
     
     nilai = float(nilai)
-    
     is_negative = nilai < 0
     nilai = abs(nilai)
     
@@ -68,7 +66,6 @@ def format_rupiah(nilai):
     return hasil
 
 def parse_number_from_sheets(value):
-    """Parse number dari Google Sheets dengan handling format Indonesia"""
     if pd.isna(value) or value == "" or value is None:
         return 0.0
     
@@ -115,7 +112,7 @@ def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
     df = pd.DataFrame(data).fillna("")
     return df
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
     harga_vendor_fallback = {
         "Jasa Kegiatan Geser APP": 93000.0,
@@ -199,12 +196,24 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
         
         return harga_vendor_fallback, harga_pelanggan_fallback, False
         
-    except Exception as e:
-        st.warning(f"Error loading harga: {str(e)}")
+    except Exception:
         return harga_vendor_fallback, harga_pelanggan_fallback, False
 
+if "harga_loaded" not in st.session_state:
+    st.session_state.harga_loaded = False
+
+if not st.session_state.harga_loaded:
+    harga_vendor, harga_pelanggan, is_from_sheets = fetch_master_harga(SPREADSHEET_ID, MASTER_HARGA_SHEET)
+    st.session_state.harga_vendor = harga_vendor
+    st.session_state.harga_pelanggan = harga_pelanggan
+    st.session_state.is_from_sheets = is_from_sheets
+    st.session_state.harga_loaded = True
+else:
+    harga_vendor = st.session_state.harga_vendor
+    harga_pelanggan = st.session_state.harga_pelanggan
+    is_from_sheets = st.session_state.is_from_sheets
+
 df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
-harga_vendor, harga_pelanggan, is_from_sheets = fetch_master_harga(SPREADSHEET_ID, MASTER_HARGA_SHEET)
 
 id_to_name = {}
 if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
@@ -220,9 +229,6 @@ if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
             for _, row in df_sheets.iterrows()
             if str(row.get("ID Pelanggan", "")).strip() != ""
         }
-
-data_barang = []
-data_barang_tambahan = []
 
 sat_mapping = {
     "Jasa Kegiatan Geser APP": "PLG",
@@ -259,11 +265,13 @@ additional_items = [
     "Twisted Cable 2x10 mm² - Al",
 ]
 
+data_barang = []
 for nama in main_items:
     harga = harga_pelanggan.get(nama, 0)
     sat = sat_mapping.get(nama, "")
     data_barang.append({"nama": nama, "SAT": sat, "harga": harga})
 
+data_barang_tambahan = []
 for nama in additional_items:
     harga = harga_pelanggan.get(nama, 0)
     sat = sat_mapping.get(nama, "")
@@ -282,7 +290,6 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
     nama_dengan_id = f"{nama} ({id_display})" if id_display else f"{nama}"
     
     df_preview_vendor = df_pilih.copy()
-    df_preview_pelanggan = df_pilih.copy()
     
     for i in range(len(df_preview_vendor)):
         item_name = df_preview_vendor.iloc[i]["Rincian"]
@@ -398,24 +405,10 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
 
 st.title("Daftar Barang & Input Petugas")
 
-col_info1, col_info2 = st.columns([4, 1])
-with col_info1:
-    if is_from_sheets:
-        st.success(f"Harga berhasil dimuat dari sheet '{MASTER_HARGA_SHEET}'")
-        with st.expander("Debug: Lihat Harga yang Dimuat"):
-            st.write("Harga Vendor (sample):")
-            sample_vendor = {k: v for k, v in list(harga_vendor.items())[:5]}
-            st.json(sample_vendor)
-            st.write("Harga Pelanggan (sample):")
-            sample_pelanggan = {k: v for k, v in list(harga_pelanggan.items())[:5]}
-            st.json(sample_pelanggan)
-    else:
-        st.warning(f"Harga menggunakan data fallback. Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia.")
-
-with col_info2:
-    if st.button("🔄 Reload", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
+if is_from_sheets:
+    st.info(f"Harga dimuat dari sheet '{MASTER_HARGA_SHEET}'")
+else:
+    st.warning(f"Harga menggunakan data fallback. Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia.")
 
 st.subheader("Filter & Pilih Pelanggan")
 
