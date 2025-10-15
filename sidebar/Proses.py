@@ -67,6 +67,27 @@ def format_rupiah(nilai):
     
     return hasil
 
+def parse_number_from_sheets(value):
+    """Parse number dari Google Sheets dengan handling format Indonesia"""
+    if pd.isna(value) or value == "" or value is None:
+        return 0.0
+    
+    if isinstance(value, (int, float)):
+        return float(value)
+    
+    value_str = str(value).strip()
+    
+    if not value_str:
+        return 0.0
+    
+    value_str = value_str.replace(".", "")
+    value_str = value_str.replace(",", ".")
+    
+    try:
+        return float(value_str)
+    except (ValueError, TypeError):
+        return 0.0
+
 def load_sheet_by_gid(spreadsheet_id, gid):
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
@@ -94,7 +115,7 @@ def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
     df = pd.DataFrame(data).fillna("")
     return df
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
     harga_vendor_fallback = {
         "Jasa Kegiatan Geser APP": 93000.0,
@@ -133,35 +154,53 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
         if ws is None:
             return harga_vendor_fallback, harga_pelanggan_fallback, False
         
-        data = ws.get_all_records()
-        df = pd.DataFrame(data)
+        all_values = ws.get_all_values()
         
-        required_cols = ["Nama Barang", "Harga Vendor", "Harga Pelanggan"]
-        if not all(col in df.columns for col in required_cols):
+        if len(all_values) < 2:
+            return harga_vendor_fallback, harga_pelanggan_fallback, False
+        
+        headers = all_values[0]
+        
+        nama_col_idx = None
+        vendor_col_idx = None
+        pelanggan_col_idx = None
+        
+        for idx, h in enumerate(headers):
+            h_lower = str(h).strip().lower()
+            if "nama barang" in h_lower or "nama" in h_lower:
+                nama_col_idx = idx
+            elif "vendor" in h_lower and "harga" in h_lower:
+                vendor_col_idx = idx
+            elif "pelanggan" in h_lower and "harga" in h_lower:
+                pelanggan_col_idx = idx
+        
+        if nama_col_idx is None or vendor_col_idx is None or pelanggan_col_idx is None:
             return harga_vendor_fallback, harga_pelanggan_fallback, False
         
         harga_vendor = {}
         harga_pelanggan = {}
         
-        for _, row in df.iterrows():
-            nama = str(row["Nama Barang"]).strip()
+        for row in all_values[1:]:
+            if len(row) <= max(nama_col_idx, vendor_col_idx, pelanggan_col_idx):
+                continue
+            
+            nama = str(row[nama_col_idx]).strip()
             if not nama:
                 continue
             
-            try:
-                harga_v = float(row["Harga Vendor"]) if pd.notna(row["Harga Vendor"]) else 0.0
-                harga_p = float(row["Harga Pelanggan"]) if pd.notna(row["Harga Pelanggan"]) else 0.0
-                harga_vendor[nama] = harga_v
-                harga_pelanggan[nama] = harga_p
-            except (ValueError, TypeError):
-                continue
+            harga_v = parse_number_from_sheets(row[vendor_col_idx])
+            harga_p = parse_number_from_sheets(row[pelanggan_col_idx])
+            
+            harga_vendor[nama] = harga_v
+            harga_pelanggan[nama] = harga_p
         
         if harga_vendor and harga_pelanggan:
             return harga_vendor, harga_pelanggan, True
         
         return harga_vendor_fallback, harga_pelanggan_fallback, False
         
-    except Exception:
+    except Exception as e:
+        st.warning(f"Error loading harga: {str(e)}")
         return harga_vendor_fallback, harga_pelanggan_fallback, False
 
 df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
@@ -362,12 +401,19 @@ st.title("Daftar Barang & Input Petugas")
 col_info1, col_info2 = st.columns([4, 1])
 with col_info1:
     if is_from_sheets:
-        st.info(f"Harga berhasil dimuat dari sheet '{MASTER_HARGA_SHEET}'. Data akan diperbarui otomatis setiap 5 menit.")
+        st.success(f"Harga berhasil dimuat dari sheet '{MASTER_HARGA_SHEET}'")
+        with st.expander("Debug: Lihat Harga yang Dimuat"):
+            st.write("Harga Vendor (sample):")
+            sample_vendor = {k: v for k, v in list(harga_vendor.items())[:5]}
+            st.json(sample_vendor)
+            st.write("Harga Pelanggan (sample):")
+            sample_pelanggan = {k: v for k, v in list(harga_pelanggan.items())[:5]}
+            st.json(sample_pelanggan)
     else:
-        st.warning(f"Harga menggunakan data fallback (hardcoded). Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia dengan kolom: Nama Barang, Harga Vendor, Harga Pelanggan.")
+        st.warning(f"Harga menggunakan data fallback. Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia.")
 
 with col_info2:
-    if st.button("🔄 Reload Harga", use_container_width=True, help="Reload data harga dari Google Sheets"):
+    if st.button("🔄 Reload", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
