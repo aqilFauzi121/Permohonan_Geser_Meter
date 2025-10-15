@@ -105,7 +105,7 @@ def load_sheet_by_name(spreadsheet_id, sheet_name):
     except Exception:
         return None
 
-@st.cache_data(ttl=180, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
     ws = load_sheet_by_gid(spreadsheet_id, gid)
     data = ws.get_all_records()
@@ -199,8 +199,18 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
     except Exception:
         return harga_vendor_fallback, harga_pelanggan_fallback, False
 
+if "pelanggan_loaded" not in st.session_state:
+    st.session_state.pelanggan_loaded = False
+
 if "harga_loaded" not in st.session_state:
     st.session_state.harga_loaded = False
+
+if not st.session_state.pelanggan_loaded:
+    df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
+    st.session_state.df_sheets = df_sheets
+    st.session_state.pelanggan_loaded = True
+else:
+    df_sheets = st.session_state.df_sheets
 
 if not st.session_state.harga_loaded:
     harga_vendor, harga_pelanggan, is_from_sheets = fetch_master_harga(SPREADSHEET_ID, MASTER_HARGA_SHEET)
@@ -212,8 +222,6 @@ else:
     harga_vendor = st.session_state.harga_vendor
     harga_pelanggan = st.session_state.harga_pelanggan
     is_from_sheets = st.session_state.is_from_sheets
-
-df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
 
 id_to_name = {}
 if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
