@@ -541,6 +541,8 @@ with col1:
 barang_dipilih = []
 with col2:
     st.subheader("Input Kuantitas Barang")
+    
+    quantities = {}
     for idx, barang in enumerate(semua_barang):
         if str(barang.get("nama", "")).startswith("----"):
             st.markdown("---")
@@ -548,22 +550,33 @@ with col2:
 
         key_name = f"qty_{idx}"
         sat_label = barang.get("SAT", "")
+        
+        default_value = st.session_state.get(key_name, 0)
+        
         qty = st.number_input(
             f"{barang.get('nama', 'Item')} ({sat_label})",
             min_value=0,
             step=1,
+            value=default_value,
             key=key_name
         )
-        if qty and qty > 0:
-            harga = float(barang.get("harga", 0) or 0)
-            total = qty * harga
-            barang_dipilih.append({
-                "Rincian": barang.get("nama", ""),
-                "SAT": sat_label,
-                "Vol": int(qty),
-                "Harga Satuan Material": harga,
-                "Harga Total": total
-            })
+        quantities[idx] = qty
+
+for idx, barang in enumerate(semua_barang):
+    if str(barang.get("nama", "")).startswith("----"):
+        continue
+    
+    qty = quantities.get(idx, 0)
+    if qty and qty > 0:
+        harga = float(barang.get("harga", 0) or 0)
+        total = qty * harga
+        barang_dipilih.append({
+            "Rincian": barang.get("nama", ""),
+            "SAT": sat_mapping.get(barang.get("nama", ""), ""),
+            "Vol": int(qty),
+            "Harga Satuan Material": harga,
+            "Harga Total": total
+        })
 
 st.markdown("---")
 
