@@ -1,6 +1,5 @@
 import streamlit as st
 
-# === KONFIGURASI PAGE ===
 st.set_page_config(
     page_title="Permohonan Geser Meter",
     page_icon="assets/logo_pln.png",
@@ -12,7 +11,6 @@ import os
 from PIL import Image
 from datetime import datetime
 
-# timezone helper
 try:
     from zoneinfo import ZoneInfo
     def now_jakarta():
@@ -25,10 +23,8 @@ BASE_DIR = os.path.dirname(__file__)
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 SIDEBAR_DIR = os.path.join(BASE_DIR, "sidebar")
 
-# === Global CSS ===
 st.markdown("""
 <style>
-    /* Main content padding */
     .main .block-container {
         padding-top: 1rem;
         padding-bottom: 2rem;
@@ -43,32 +39,26 @@ st.markdown("""
         margin-top: 1rem !important;
     }
     
-    /* Sidebar styling */
     [data-testid="stSidebar"] {
         background-color: #1e3a5f;
     }
     
-    /* Force white color for all sidebar text */
     [data-testid="stSidebar"] * {
         color: #ffffff !important;
     }
     
-    /* Selectbox dropdown options */
     [data-testid="stSidebar"] [data-baseweb="select"] > div {
         background-color: #2c5282 !important;
     }
     
-    /* Selectbox text */
     [data-testid="stSidebar"] [data-baseweb="select"] span {
         color: #ffffff !important;
     }
     
-    /* Link color in sidebar */
     [data-testid="stSidebar"] a {
         color: #87ceeb !important;
     }
     
-    /* Reduce gaps */
     [data-testid="stSidebar"] > div:first-child {
         padding-top: 1rem;
         padding-bottom: 0.5rem;
@@ -86,7 +76,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# === SIDEBAR: Logo & Header ===
 LOGO_PATH = os.path.join(ASSETS_DIR, "logo_pln.png")
 if os.path.exists(LOGO_PATH):
     img = Image.open(LOGO_PATH)
@@ -114,7 +103,6 @@ st.sidebar.markdown(
 
 st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 
-# === SIDEBAR: Menu Navigation ===
 st.sidebar.markdown(
     "<p style='font-size:14px; font-weight:bold; margin-bottom:8px; color:#ffd700;'>Menu Navigasi</p>", 
     unsafe_allow_html=True
@@ -133,12 +121,16 @@ choice = st.sidebar.selectbox(
     label_visibility="collapsed"
 )
 
-# === Load Selected Page ===
+st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+
+if st.sidebar.button("Reload Data Harga", use_container_width=True):
+    st.cache_data.clear()
+    st.rerun()
+
 page_module = pages.get(choice)
 
 if page_module:
     try:
-        # Method 1: Import dinamis (lebih aman)
         import importlib.util
         import sys
         
@@ -162,7 +154,6 @@ if page_module:
 else:
     st.error("Halaman tidak ditemukan.")
 
-# === SIDEBAR: Info Akses ===
 st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 st.sidebar.markdown(
     "<p style='color:#ffd700; font-size:14px; margin-bottom:5px; font-weight:bold;'>Informasi Akses</p>",
@@ -174,7 +165,6 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-# === SIDEBAR: Footer ===
 st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 UNI_LOGO = os.path.join(ASSETS_DIR, "Logo_Universitas_Brawijaya.svg.png")
 if os.path.exists(UNI_LOGO):
