@@ -34,6 +34,7 @@ Thumbs.db
 .streamlit/secrets.toml
 .streamlit/
 Kode_Lama/
+QR_Code_Generated/
 
 # Streamlit cache (optional to ignore)
 .streamlit/*cache*/
