@@ -1,12 +1,3 @@
-"""
-Proses Module - Survey Data Input & Management
-
-This module handles the main workflow for survey data:
-1. Input item quantities for selected customers
-2. Save draft data with automatic survey date update
-3. Display saved drafts with export, edit, and delete capabilities
-"""
-
 import os
 import sys
 import time
