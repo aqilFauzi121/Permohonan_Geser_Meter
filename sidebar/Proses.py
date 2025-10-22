@@ -22,10 +22,10 @@ if THIS_DIR and THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
 
 try:
-    import draft_manager
+    import draft_manager  # type: ignore
     HAVE_DRAFT_MANAGER = True
 except Exception as e:
-    draft_manager = None
+    draft_manager = None  # type: ignore
     HAVE_DRAFT_MANAGER = False
     st.error(f"Error importing draft_manager: {e}")
 
@@ -782,15 +782,19 @@ else:
                 jumlah_item = row['Jumlah_Item']
                 
                 with st.expander(f"{idpel_draft} ({nama_draft})", expanded=False):
-                    lokasi_short = lokasi_draft[:50] + "..." if len(lokasi_draft) > 50 else lokasi_draft
+                    col_info1, col_info2 = st.columns(2)
                     
-                    st.markdown(
-                        f"**Lokasi:** {lokasi_short} | "
-                        f"**Tersimpan:** {tanggal_save} | "
-                        f"**Items:** {jumlah_item} barang"
-                    )
+                    with col_info1:
+                        st.markdown(f"**Lokasi:** {lokasi_draft}")
+                        st.markdown(f"**Tersimpan:** {tanggal_save}")
                     
-                    if st.checkbox("Lihat Detail Barang", key=f"detail_{idpel_draft}"):
+                    with col_info2:
+                        st.markdown(f"**Jumlah Item:** {jumlah_item} barang")
+                        
+                        if st.checkbox("Lihat Detail Barang", key=f"detail_{idpel_draft}"):
+                            pass
+                    
+                    if st.session_state.get(f"detail_{idpel_draft}", False):
                         barang_list = row['Barang_List']
                         if barang_list:
                             df_barang = pd.DataFrame(barang_list)
