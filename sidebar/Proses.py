@@ -2,7 +2,6 @@ import os
 import sys
 import time
 import traceback
-from typing import Optional, Callable
 from datetime import datetime
 
 import streamlit as st
@@ -23,10 +22,10 @@ if THIS_DIR and THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
 
 try:
-    import draft_manager  # type: ignore
+    import draft_manager
     HAVE_DRAFT_MANAGER = True
 except Exception as e:
-    draft_manager = None  # type: ignore
+    draft_manager = None
     HAVE_DRAFT_MANAGER = False
     st.error(f"Error importing draft_manager: {e}")
 
@@ -48,7 +47,6 @@ except Exception as e:
 
 
 def format_rupiah(nilai):
-    """Format number to Indonesian Rupiah format."""
     if pd.isna(nilai) or nilai == 0:
         return "0"
     
@@ -74,7 +72,6 @@ def format_rupiah(nilai):
 
 
 def parse_number_from_sheets(value):
-    """Parse number from sheets (handles Indonesian format)."""
     if pd.isna(value) or value == "" or value is None:
         return 0.0
     
@@ -96,7 +93,6 @@ def parse_number_from_sheets(value):
 
 
 def load_sheet_by_gid(spreadsheet_id, gid):
-    """Load worksheet by GID."""
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     target = None
@@ -110,7 +106,6 @@ def load_sheet_by_gid(spreadsheet_id, gid):
 
 
 def load_sheet_by_name(spreadsheet_id, sheet_name):
-    """Load worksheet by name."""
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     try:
@@ -121,7 +116,6 @@ def load_sheet_by_name(spreadsheet_id, sheet_name):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
-    """Fetch customer data with 1-hour cache."""
     ws = load_sheet_by_gid(spreadsheet_id, gid)
     data = ws.get_all_records()
     df = pd.DataFrame(data).fillna("")
@@ -130,7 +124,6 @@ def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
-    """Fetch price master data with 1-hour cache."""
     harga_vendor_fallback = {
         "Jasa Kegiatan Geser APP": 93000.0,
         "Jasa Kegiatan Geser Perubahan Situasi SR": 79000.0,
@@ -300,7 +293,6 @@ semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga":
 
 @st.dialog("Preview Rekap", width="large")
 def show_preview_dialog(barang_dipilih, meta_data):
-    """Show preview dialog for export with vendor and customer pricing tabs."""
     if not barang_dipilih:
         st.warning("Tidak ada barang yang dipilih.")
         return
@@ -416,7 +408,6 @@ def show_preview_dialog(barang_dipilih, meta_data):
 
 @st.dialog("Edit Data Survey", width="large")
 def show_edit_dialog(idpel: str):
-    """Show edit dialog for saved draft data."""
     if not HAVE_DRAFT_MANAGER or draft_manager is None:
         st.error("Draft manager tidak tersedia")
         return
@@ -733,125 +724,174 @@ st.markdown("## Data Survey yang Sudah Tersimpan")
 if not HAVE_DRAFT_MANAGER or draft_manager is None:
     st.warning("Draft manager tidak tersedia. Tidak bisa menampilkan data tersimpan.")
 else:
-    col_reload, col_info = st.columns([1, 3])
+    col_reload, col_search = st.columns([1, 3])
     
     with col_reload:
         if st.button("Refresh Data", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
     
-    with col_info:
-        draft_count = draft_manager.count_drafts(SPREADSHEET_ID)
-        if draft_count > 0:
-            st.info(f"Terdapat {draft_count} pelanggan yang sudah menyimpan data survey")
-        else:
-            st.info("Belum ada data survey yang tersimpan")
+    with col_search:
+        search_draft = st.text_input(
+            "Cari ID Pelanggan",
+            placeholder="Ketik ID Pelanggan untuk mencari...",
+            key="search_draft_id",
+            label_visibility="collapsed"
+        )
     
     df_drafts = draft_manager.load_all_drafts(SPREADSHEET_ID)
     
     if df_drafts.empty:
         st.info("Belum ada data survey yang tersimpan. Silakan input dan simpan data pelanggan terlebih dahulu.")
     else:
-        st.markdown(f"**Total: {len(df_drafts)} pelanggan**")
-        st.markdown("---")
+        df_filtered_drafts = df_drafts.copy()
         
-        for idx, row in df_drafts.iterrows():
-            idpel_draft = str(row['ID Pelanggan'])
-            nama_draft = str(row['Nama'])
-            lokasi_draft = str(row['Lokasi'])
-            tanggal_save = str(row['Tanggal Save'])
-            jumlah_item = row['Jumlah_Item']
+        if search_draft.strip():
+            search_lower = search_draft.strip().lower()
+            df_filtered_drafts = df_filtered_drafts[
+                df_filtered_drafts["ID Pelanggan"].astype(str).str.lower().str.contains(search_lower, na=False)
+            ]
+        
+        total_drafts = len(df_filtered_drafts)
+        
+        if total_drafts == 0:
+            st.warning(f"Tidak ada data yang cocok dengan pencarian '{search_draft}'")
+        else:
+            items_per_page = 5
+            total_pages = (total_drafts + items_per_page - 1) // items_per_page
             
-            with st.expander(f"{idpel_draft} ({nama_draft})", expanded=False):
-                col_info1, col_info2 = st.columns(2)
+            if "current_page" not in st.session_state:
+                st.session_state.current_page = 1
+            
+            if st.session_state.current_page > total_pages:
+                st.session_state.current_page = total_pages
+            
+            start_idx = (st.session_state.current_page - 1) * items_per_page
+            end_idx = min(start_idx + items_per_page, total_drafts)
+            
+            st.markdown(f"**Terdapat {total_drafts} pelanggan** | Menampilkan: {start_idx + 1}-{end_idx}")
+            st.markdown("---")
+            
+            df_page = df_filtered_drafts.iloc[start_idx:end_idx]
+            
+            for idx, row in df_page.iterrows():
+                idpel_draft = str(row['ID Pelanggan'])
+                nama_draft = str(row['Nama'])
+                lokasi_draft = str(row['Lokasi'])
+                tanggal_save = str(row['Tanggal Save'])
+                jumlah_item = row['Jumlah_Item']
                 
-                with col_info1:
-                    st.markdown(f"**Lokasi:** {lokasi_draft}")
-                    st.markdown(f"**Tersimpan:** {tanggal_save}")
-                
-                with col_info2:
-                    st.markdown(f"**Jumlah Item:** {jumlah_item} barang")
-                
-                if st.checkbox("Lihat Detail Barang", key=f"detail_{idpel_draft}"):
-                    barang_list = row['Barang_List']
-                    if barang_list:
-                        df_barang = pd.DataFrame(barang_list)
-                        if 'Harga Satuan Material' in df_barang.columns:
-                            df_barang['Harga Satuan Material'] = df_barang['Harga Satuan Material'].apply(format_rupiah)
-                        if 'Harga Total' in df_barang.columns:
-                            df_barang['Harga Total'] = df_barang['Harga Total'].apply(format_rupiah)
-                        
-                        st.dataframe(
-                            df_barang[['Rincian', 'SAT', 'Vol', 'Harga Satuan Material', 'Harga Total']],
-                            use_container_width=True,
-                            hide_index=True
-                        )
-                
-                st.markdown("---")
-                
-                col_btn1, col_btn2, col_btn3 = st.columns(3)
-                
-                with col_btn1:
-                    if st.button("Export", key=f"export_{idpel_draft}", use_container_width=True, type="primary"):
-                        if draft_manager is not None:
-                            draft_full = draft_manager.load_single_draft(SPREADSHEET_ID, idpel_draft)
-                            
-                            if draft_full["found"]:
-                                data_full = draft_full["data"]
-                                
-                                nama_with_id = f"{data_full.get('nama', '-')} ({idpel_draft})"
-                                meta = {
-                                    "Pekerjaan": data_full.get('pekerjaan', '-'),
-                                    "Nama": nama_with_id,
-                                    "Lokasi": data_full.get('lokasi', '-'),
-                                    "ULP": data_full.get('ulp', '-'),
-                                    "No SPK": data_full.get('no_spk', '-'),
-                                    "Vendor": data_full.get('vendor', '-')
-                                }
-                                
-                                show_preview_dialog(data_full.get('barang', []), meta)
-                            else:
-                                st.error("Data tidak ditemukan")
-                        else:
-                            st.error("Draft manager tidak tersedia")
-                
-                with col_btn2:
-                    if st.button("Edit", key=f"edit_{idpel_draft}", use_container_width=True):
-                        show_edit_dialog(idpel_draft)
-                
-                with col_btn3:
-                    if f"confirm_delete_{idpel_draft}" not in st.session_state:
-                        st.session_state[f"confirm_delete_{idpel_draft}"] = False
+                with st.expander(f"{idpel_draft} ({nama_draft})", expanded=False):
+                    lokasi_short = lokasi_draft[:50] + "..." if len(lokasi_draft) > 50 else lokasi_draft
                     
-                    if not st.session_state[f"confirm_delete_{idpel_draft}"]:
-                        if st.button("Hapus", key=f"delete_{idpel_draft}", use_container_width=True):
-                            st.session_state[f"confirm_delete_{idpel_draft}"] = True
-                            st.rerun()
-                    else:
-                        col_del1, col_del2 = st.columns(2)
+                    st.markdown(
+                        f"**Lokasi:** {lokasi_short} | "
+                        f"**Tersimpan:** {tanggal_save} | "
+                        f"**Items:** {jumlah_item} barang"
+                    )
+                    
+                    if st.checkbox("Lihat Detail Barang", key=f"detail_{idpel_draft}"):
+                        barang_list = row['Barang_List']
+                        if barang_list:
+                            df_barang = pd.DataFrame(barang_list)
+                            if 'Harga Satuan Material' in df_barang.columns:
+                                df_barang['Harga Satuan Material'] = df_barang['Harga Satuan Material'].apply(format_rupiah)
+                            if 'Harga Total' in df_barang.columns:
+                                df_barang['Harga Total'] = df_barang['Harga Total'].apply(format_rupiah)
+                            
+                            st.dataframe(
+                                df_barang[['Rincian', 'SAT', 'Vol', 'Harga Satuan Material', 'Harga Total']],
+                                use_container_width=True,
+                                hide_index=True
+                            )
+                    
+                    st.markdown("---")
+                    
+                    col_btn1, col_btn2, col_btn3 = st.columns(3)
+                    
+                    with col_btn1:
+                        if st.button("Export", key=f"export_{idpel_draft}", use_container_width=True, type="primary"):
+                            if draft_manager is not None:
+                                draft_full = draft_manager.load_single_draft(SPREADSHEET_ID, idpel_draft)
+                                
+                                if draft_full["found"]:
+                                    data_full = draft_full["data"]
+                                    
+                                    nama_with_id = f"{data_full.get('nama', '-')} ({idpel_draft})"
+                                    meta = {
+                                        "Pekerjaan": data_full.get('pekerjaan', '-'),
+                                        "Nama": nama_with_id,
+                                        "Lokasi": data_full.get('lokasi', '-'),
+                                        "ULP": data_full.get('ulp', '-'),
+                                        "No SPK": data_full.get('no_spk', '-'),
+                                        "Vendor": data_full.get('vendor', '-')
+                                    }
+                                    
+                                    show_preview_dialog(data_full.get('barang', []), meta)
+                                else:
+                                    st.error("Data tidak ditemukan")
+                            else:
+                                st.error("Draft manager tidak tersedia")
+                    
+                    with col_btn2:
+                        if st.button("Edit", key=f"edit_{idpel_draft}", use_container_width=True):
+                            show_edit_dialog(idpel_draft)
+                    
+                    with col_btn3:
+                        if f"confirm_delete_{idpel_draft}" not in st.session_state:
+                            st.session_state[f"confirm_delete_{idpel_draft}"] = False
                         
-                        with col_del1:
-                            if st.button("Batal", key=f"cancel_delete_{idpel_draft}", use_container_width=True):
-                                st.session_state[f"confirm_delete_{idpel_draft}"] = False
+                        if not st.session_state[f"confirm_delete_{idpel_draft}"]:
+                            if st.button("Hapus", key=f"delete_{idpel_draft}", use_container_width=True):
+                                st.session_state[f"confirm_delete_{idpel_draft}"] = True
                                 st.rerun()
-                        
-                        with col_del2:
-                            if st.button("Yakin?", key=f"confirm_delete_yes_{idpel_draft}", 
-                                       use_container_width=True, type="primary"):
-                                with st.spinner("Menghapus data..."):
-                                    if draft_manager is not None:
-                                        result = draft_manager.delete_draft_survey(SPREADSHEET_ID, idpel_draft)
-                                        
-                                        if result["success"]:
-                                            st.success(result['message'])
-                                            st.cache_data.clear()
-                                            if f"confirm_delete_{idpel_draft}" in st.session_state:
-                                                del st.session_state[f"confirm_delete_{idpel_draft}"]
-                                            time.sleep(1)
-                                            st.rerun()
+                        else:
+                            col_del1, col_del2 = st.columns(2)
+                            
+                            with col_del1:
+                                if st.button("Batal", key=f"cancel_delete_{idpel_draft}", use_container_width=True):
+                                    st.session_state[f"confirm_delete_{idpel_draft}"] = False
+                                    st.rerun()
+                            
+                            with col_del2:
+                                if st.button("Yakin?", key=f"confirm_delete_yes_{idpel_draft}", 
+                                           use_container_width=True, type="primary"):
+                                    with st.spinner("Menghapus data..."):
+                                        if draft_manager is not None:
+                                            result = draft_manager.delete_draft_survey(SPREADSHEET_ID, idpel_draft)
+                                            
+                                            if result["success"]:
+                                                st.success(result['message'])
+                                                st.cache_data.clear()
+                                                if f"confirm_delete_{idpel_draft}" in st.session_state:
+                                                    del st.session_state[f"confirm_delete_{idpel_draft}"]
+                                                time.sleep(1)
+                                                st.rerun()
+                                            else:
+                                                st.error(result['message'])
                                         else:
-                                            st.error(result['message'])
-                                    else:
-                                        st.error("Draft manager tidak tersedia")
-                
-                st.markdown("---")
+                                            st.error("Draft manager tidak tersedia")
+            
+            st.markdown("---")
+            
+            col_prev, col_info, col_next = st.columns([1, 2, 1])
+            
+            with col_prev:
+                if st.session_state.current_page > 1:
+                    if st.button("◀ Sebelumnya", use_container_width=True):
+                        st.session_state.current_page -= 1
+                        st.rerun()
+            
+            with col_info:
+                st.markdown(
+                    f"<div style='text-align: center; padding: 8px;'>"
+                    f"<strong>Halaman {st.session_state.current_page} dari {total_pages}</strong>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+            
+            with col_next:
+                if st.session_state.current_page < total_pages:
+                    if st.button("Selanjutnya ▶", use_container_width=True):
+                        st.session_state.current_page += 1
+                        st.rerun()
