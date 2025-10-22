@@ -1,5 +1,15 @@
+"""
+Proses Module - Survey Data Input & Management
+
+This module handles the main workflow for survey data:
+1. Input item quantities for selected customers
+2. Save draft data with automatic survey date update
+3. Display saved drafts with export, edit, and delete capabilities
+"""
+
 import os
 import sys
+import time
 import traceback
 from typing import Optional, Callable
 from datetime import datetime
@@ -21,15 +31,19 @@ THIS_DIR = os.path.dirname(__file__)
 if THIS_DIR and THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
 
-export_rekap_to_sheet: Optional[Callable] = None
-HAVE_EXPORT = False
-import_error_msg = None
+try:
+    import draft_manager  # type: ignore
+    HAVE_DRAFT_MANAGER = True
+except Exception as e:
+    draft_manager = None  # type: ignore
+    HAVE_DRAFT_MANAGER = False
+    st.error(f"Error importing draft_manager: {e}")
+
 try:
     import export_rekap_sheets as _export_mod
     export_rekap_to_sheet = getattr(_export_mod, "export_rekap_to_sheet", None)
     HAVE_EXPORT = callable(export_rekap_to_sheet)
 except Exception:
-    import_error_msg = traceback.format_exc()
     export_rekap_to_sheet = None
     HAVE_EXPORT = False
 
@@ -41,7 +55,9 @@ except Exception as e:
     st.error(f"Konfigurasi secrets tidak lengkap: {e}")
     st.stop()
 
+
 def format_rupiah(nilai):
+    """Format number to Indonesian Rupiah format."""
     if pd.isna(nilai) or nilai == 0:
         return "0"
     
@@ -65,7 +81,9 @@ def format_rupiah(nilai):
     
     return hasil
 
+
 def parse_number_from_sheets(value):
+    """Parse number from sheets (handles Indonesian format)."""
     if pd.isna(value) or value == "" or value is None:
         return 0.0
     
@@ -85,7 +103,9 @@ def parse_number_from_sheets(value):
     except (ValueError, TypeError):
         return 0.0
 
+
 def load_sheet_by_gid(spreadsheet_id, gid):
+    """Load worksheet by GID."""
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     target = None
@@ -97,7 +117,9 @@ def load_sheet_by_gid(spreadsheet_id, gid):
         target = sh.sheet1
     return target
 
+
 def load_sheet_by_name(spreadsheet_id, sheet_name):
+    """Load worksheet by name."""
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     try:
@@ -105,15 +127,19 @@ def load_sheet_by_name(spreadsheet_id, sheet_name):
     except Exception:
         return None
 
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
+    """Fetch customer data with 1-hour cache."""
     ws = load_sheet_by_gid(spreadsheet_id, gid)
     data = ws.get_all_records()
     df = pd.DataFrame(data).fillna("")
     return df
 
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
+    """Fetch price master data with 1-hour cache."""
     harga_vendor_fallback = {
         "Jasa Kegiatan Geser APP": 93000.0,
         "Jasa Kegiatan Geser Perubahan Situasi SR": 79000.0,
@@ -126,8 +152,6 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
         "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": 29400.0,
         "Segel Plastik": 1754.0,
         "Twisted Cable 2 x 10 mm² - Al": 4339.0,
-        "Asuransi": 0.0,
-        "Twisted Cable 2x10 mm² - Al": 0.0,
     }
     
     harga_pelanggan_fallback = {
@@ -142,8 +166,6 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
         "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": 32634.0,
         "Segel Plastik": 1946.94,
         "Twisted Cable 2 x 10 mm² - Al": 4816.29,
-        "Asuransi": 0.0,
-        "Twisted Cable 2x10 mm² - Al": 0.0,
     }
     
     try:
@@ -199,6 +221,7 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
     except Exception:
         return harga_vendor_fallback, harga_pelanggan_fallback, False
 
+
 if "pelanggan_loaded" not in st.session_state:
     st.session_state.pelanggan_loaded = False
 
@@ -250,8 +273,6 @@ sat_mapping = {
     "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover": "B",
     "Segel Plastik": "B",
     "Twisted Cable 2 x 10 mm² - Al": "M",
-    "Asuransi": "I",
-    "Twisted Cable 2x10 mm² - Al": "B",
 }
 
 main_items = [
@@ -269,8 +290,6 @@ main_items = [
 additional_items = [
     "Segel Plastik",
     "Twisted Cable 2 x 10 mm² - Al",
-    "Asuransi",
-    "Twisted Cable 2x10 mm² - Al",
 ]
 
 data_barang = []
@@ -287,18 +306,17 @@ for nama in additional_items:
 
 semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga": 0}] + data_barang_tambahan
 
+
 @st.dialog("Preview Rekap", width="large")
-def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor):
+def show_preview_dialog(barang_dipilih, meta_data):
+    """Show preview dialog for export with vendor and customer pricing tabs."""
     if not barang_dipilih:
         st.warning("Tidak ada barang yang dipilih.")
         return
     
     df_pilih = pd.DataFrame(barang_dipilih)
-    id_display = idpel_selected if idpel_selected else ""
-    nama_dengan_id = f"{nama} ({id_display})" if id_display else f"{nama}"
     
     df_preview_vendor = df_pilih.copy()
-    
     for i in range(len(df_preview_vendor)):
         item_name = df_preview_vendor.iloc[i]["Rincian"]
         qty = df_preview_vendor.iloc[i]["Vol"]
@@ -318,38 +336,40 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
     
     with tab1:
         st.markdown("#### REKAP HARGA PEKERJAAN - VENDOR")
-        st.markdown(f"**PEKERJAAN:** {pekerjaan or '-'}")
-        st.markdown(f"**NAMA:** {nama_dengan_id}")
-        st.markdown(f"**LOKASI:** {lokasi}")
-        st.markdown(f"**ULP:** {ulp or '-'}")
-        st.markdown(f"**NO SPK:** {no_spk or '-'}")
-        st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
+        st.markdown(f"**PEKERJAAN:** {meta_data.get('Pekerjaan', '-')}")
+        st.markdown(f"**NAMA:** {meta_data.get('Nama', '-')}")
+        st.markdown(f"**LOKASI:** {meta_data.get('Lokasi', '-')}")
+        st.markdown(f"**ULP:** {meta_data.get('ULP', '-')}")
+        st.markdown(f"**NO SPK:** {meta_data.get('No SPK', '-')}")
+        st.markdown(f"**VENDOR PELAKSANA:** {meta_data.get('Vendor', '-')}")
         st.write("---")
         
         df_vendor_display = df_preview_vendor.copy()
         df_vendor_display["Harga Satuan Material"] = df_vendor_display["Harga Satuan Material"].apply(format_rupiah)
         df_vendor_display["Harga Total"] = df_preview_vendor["Harga Total"].apply(format_rupiah)
         
-        st.dataframe(df_vendor_display[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
+        st.dataframe(df_vendor_display[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], 
+                    use_container_width=True, hide_index=True)
         st.write(f"**Subtotal:** Rp {format_rupiah(subtotal_vendor)}")
         st.write(f"**PPN (11%):** Rp {format_rupiah(ppn_vendor)}")
         st.success(f"**TOTAL BIAYA: Rp {format_rupiah(total_vendor)}**")
     
     with tab2:
         st.markdown("#### REKAP HARGA PEKERJAAN - PELANGGAN")
-        st.markdown(f"**PEKERJAAN:** {pekerjaan or '-'}")
-        st.markdown(f"**NAMA:** {nama_dengan_id}")
-        st.markdown(f"**LOKASI:** {lokasi}")
-        st.markdown(f"**ULP:** {ulp or '-'}")
-        st.markdown(f"**NO SPK:** {no_spk or '-'}")
-        st.markdown(f"**VENDOR PELAKSANA:** {vendor or '-'}")
+        st.markdown(f"**PEKERJAAN:** {meta_data.get('Pekerjaan', '-')}")
+        st.markdown(f"**NAMA:** {meta_data.get('Nama', '-')}")
+        st.markdown(f"**LOKASI:** {meta_data.get('Lokasi', '-')}")
+        st.markdown(f"**ULP:** {meta_data.get('ULP', '-')}")
+        st.markdown(f"**NO SPK:** {meta_data.get('No SPK', '-')}")
+        st.markdown(f"**VENDOR PELAKSANA:** {meta_data.get('Vendor', '-')}")
         st.write("---")
         
         df_pelanggan_display = df_pilih.copy()
         df_pelanggan_display["Harga Satuan Material"] = df_pilih["Harga Satuan Material"].apply(format_rupiah)
         df_pelanggan_display["Harga Total"] = df_pilih["Harga Total"].apply(format_rupiah)
         
-        st.dataframe(df_pelanggan_display[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], use_container_width=True, hide_index=True)
+        st.dataframe(df_pelanggan_display[["Rincian", "SAT", "Vol", "Harga Satuan Material", "Harga Total"]], 
+                    use_container_width=True, hide_index=True)
         st.write(f"**Subtotal:** Rp {format_rupiah(subtotal_pelanggan)}")
         st.write(f"**PPN (11%):** Rp {format_rupiah(ppn_pelanggan)}")
         st.success(f"**TOTAL BIAYA: Rp {format_rupiah(total_pelanggan)}**")
@@ -358,36 +378,35 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
     col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
     
     with col_btn1:
-        if st.button("Batal", use_container_width=True, key="btn_cancel"):
+        if st.button("Batal", use_container_width=True, key="btn_cancel_export"):
             st.rerun()
     
     with col_btn3:
-        if st.button("Konfirmasi & Export", type="primary", use_container_width=True, key="btn_export"):
-            meta = {
-                "Pekerjaan": pekerjaan or "-",
-                "Nama": nama_dengan_id or "-",
-                "Lokasi": lokasi or "-",
-                "ULP": ulp or "-",
-                "No SPK": no_spk or "-",
-                "Vendor": vendor or "-"
-            }
+        if st.button("Konfirmasi & Export", type="primary", use_container_width=True, key="btn_confirm_export"):
+            nama_full = meta_data.get('Nama', '-')
+            if " (" in nama_full:
+                nama_only = nama_full.split(" (")[0].strip()
+            else:
+                nama_only = nama_full
             
             now = now_jakarta().strftime("%Y%m%d_%H%M")
-            safe_name = str(nama).replace("/", "-").replace("\\", "-")
+            safe_name = str(nama_only).replace("/", "-").replace("\\", "-")
             title_vendor = f"REKAP {safe_name} - {now}_Vendor"
             title_pelanggan = f"REKAP {safe_name} - {now}_Pelanggan"
             
             with st.spinner("Menulis data rekap ke Google Sheets..."):
                 try:
                     from export_rekap_sheets import export_rekap_pair
+                    
                     pair_info = export_rekap_pair(
                         spreadsheet_id=SPREADSHEET_ID,
                         base_sheet_title_vendor=title_vendor,
                         base_sheet_title_pelanggan=title_pelanggan,
-                        meta=meta,
+                        meta=meta_data,
                         df_pilih=df_pilih,
-                        idpel=idpel_selected,
-                        gid=GID,
+                        idpel=None,
+                        gid=None,
+                        update_survey=False
                     )
                     
                     st.success(
@@ -395,21 +414,105 @@ def show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan,
                         f"**{pair_info['pelanggan']['sheet_title']}**"
                     )
                     
-                    survey_result = pair_info.get("survey_result", {})
-                    if survey_result.get("success", False):
-                        st.info(f"Tanggal Survey: {survey_result.get('message', 'Berhasil diperbarui')}")
-                    else:
-                        st.warning(f"Tanggal Survey gagal diperbarui: {survey_result.get('message', 'Unknown error')}")
-                    
                     st.balloons()
-                    
-                    import time
                     time.sleep(2)
                     st.rerun()
+                    
                 except Exception as e:
                     st.error(f"Gagal mengekspor data: {e}")
-                    import traceback
                     st.error(traceback.format_exc())
+
+
+@st.dialog("Edit Data Survey", width="large")
+def show_edit_dialog(idpel: str):
+    """Show edit dialog for saved draft data."""
+    if not HAVE_DRAFT_MANAGER or draft_manager is None:
+        st.error("Draft manager tidak tersedia")
+        return
+    
+    draft = draft_manager.load_single_draft(SPREADSHEET_ID, idpel)
+    
+    if not draft["found"]:
+        st.error("Data tidak ditemukan")
+        return
+    
+    data = draft["data"]
+    
+    st.markdown(f"### Edit: {data.get('nama', '')} ({idpel})")
+    st.markdown(f"**Lokasi:** {data.get('lokasi', '')}")
+    st.markdown(f"**Tersimpan:** {data.get('tanggal_save', '')}")
+    st.markdown("---")
+    
+    with st.form("form_edit"):
+        pekerjaan = st.text_input("Pekerjaan", value=data.get('pekerjaan', ''), key="edit_pekerjaan")
+        ulp = st.text_input("ULP", value=data.get('ulp', ''), key="edit_ulp")
+        no_spk = st.text_input("No SPK", value=data.get('no_spk', ''), key="edit_no_spk")
+        vendor = st.text_input("Vendor Pelaksana", value=data.get('vendor', ''), key="edit_vendor")
+        
+        st.markdown("---")
+        st.subheader("Edit Kuantitas Barang")
+        
+        existing_qty = {}
+        for item in data.get('barang', []):
+            existing_qty[item['Rincian']] = item['Vol']
+        
+        new_quantities = {}
+        for idx, barang in enumerate(semua_barang):
+            if "----" in barang['nama']:
+                st.markdown("---")
+                continue
+            
+            default_val = existing_qty.get(barang['nama'], 0)
+            qty = st.number_input(
+                f"{barang['nama']} ({barang['SAT']})",
+                min_value=0,
+                value=int(default_val),
+                key=f"edit_qty_{idx}_{idpel}"
+            )
+            new_quantities[barang['nama']] = qty
+        
+        submitted = st.form_submit_button("Simpan Perubahan", use_container_width=True, type="primary")
+    
+    if submitted:
+        barang_updated = []
+        for nama, qty in new_quantities.items():
+            if qty > 0:
+                harga = harga_pelanggan.get(nama, 0)
+                barang_updated.append({
+                    "Rincian": nama,
+                    "SAT": sat_mapping.get(nama, ""),
+                    "Vol": int(qty),
+                    "Harga Satuan Material": harga,
+                    "Harga Total": qty * harga
+                })
+        
+        if not barang_updated:
+            st.error("Minimal 1 barang harus diisi")
+        else:
+            with st.spinner("Menyimpan perubahan..."):
+                if draft_manager is not None:
+                    result = draft_manager.save_draft_survey(
+                        spreadsheet_id=SPREADSHEET_ID,
+                        idpel=idpel,
+                        nama=str(data.get('nama', '')),
+                        lokasi=str(data.get('lokasi', '')),
+                        pekerjaan=pekerjaan or '',
+                        ulp=ulp or '',
+                        no_spk=no_spk or '',
+                        vendor=vendor or '',
+                        barang_data=barang_updated
+                    )
+                    
+                    if result["success"]:
+                        st.success(result['message'])
+                        st.cache_data.clear()
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(result['message'])
+                else:
+                    st.error("Draft manager tidak tersedia")
+
 
 st.title("Daftar Barang & Input Petugas")
 
@@ -423,13 +526,13 @@ st.subheader("Filter & Pilih Pelanggan")
 if "Timestamp" in df_sheets.columns:
     try:
         df_sheets["Date"] = pd.to_datetime(
-            df_sheets["Timestamp"], 
+            df_sheets["Timestamp"],
             format="%d/%m/%Y %H:%M:%S",
             errors='coerce'
         ).dt.date
     except Exception:
         df_sheets["Date"] = pd.to_datetime(
-            df_sheets["Timestamp"], 
+            df_sheets["Timestamp"],
             errors='coerce'
         ).dt.date
 
@@ -580,10 +683,184 @@ for idx, barang in enumerate(semua_barang):
 
 st.markdown("---")
 
-if st.button("Export ke Google Sheets", type="primary", use_container_width=True):
+if st.button("Simpan", type="primary", use_container_width=True):
     if not idpel_selected:
         st.error("Silakan pilih ID Pelanggan terlebih dahulu.")
     elif not barang_dipilih:
-        st.error("Belum ada barang yang dipilih.")
+        st.error("Minimal 1 barang harus diisi (quantity > 0).")
+    elif not HAVE_DRAFT_MANAGER or draft_manager is None:
+        st.error("Draft manager tidak tersedia.")
     else:
-        show_preview_dialog(barang_dipilih, nama, idpel_selected, lokasi, pekerjaan, ulp, no_spk, vendor)
+        with st.spinner("Menyimpan data..."):
+            try:
+                result = draft_manager.save_draft_survey(
+                    spreadsheet_id=SPREADSHEET_ID,
+                    idpel=idpel_selected,
+                    nama=str(nama),
+                    lokasi=str(lokasi),
+                    pekerjaan=pekerjaan or '',
+                    ulp=ulp or '',
+                    no_spk=no_spk or '',
+                    vendor=vendor or '',
+                    barang_data=barang_dipilih
+                )
+                
+                if not result["success"]:
+                    st.error(result['message'])
+                else:
+                    if result["is_new"]:
+                        from export_rekap_sheets import update_tanggal_survey_if_empty
+                        
+                        survey_result = update_tanggal_survey_if_empty(
+                            SPREADSHEET_ID, GID, idpel_selected
+                        )
+                        
+                        if survey_result["success"]:
+                            st.success(result['message'])
+                            st.info(survey_result['message'])
+                        elif survey_result.get("already_filled", False):
+                            st.success(result['message'])
+                            st.info(survey_result['message'])
+                        else:
+                            st.success(result['message'])
+                            st.warning(f"Tanggal Survey: {survey_result['message']}")
+                    else:
+                        st.success(f"{result['message']} (Data diperbarui)")
+                    
+                    st.cache_data.clear()
+                    time.sleep(1)
+                    st.rerun()
+                    
+            except Exception as e:
+                st.error(f"Terjadi kesalahan: {str(e)}")
+                st.error(traceback.format_exc())
+
+st.markdown("---")
+
+st.markdown("## Data Survey yang Sudah Tersimpan")
+
+if not HAVE_DRAFT_MANAGER or draft_manager is None:
+    st.warning("Draft manager tidak tersedia. Tidak bisa menampilkan data tersimpan.")
+else:
+    col_reload, col_info = st.columns([1, 3])
+    
+    with col_reload:
+        if st.button("Refresh Data", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+    
+    with col_info:
+        draft_count = draft_manager.count_drafts(SPREADSHEET_ID)
+        if draft_count > 0:
+            st.info(f"Terdapat {draft_count} pelanggan yang sudah menyimpan data survey")
+        else:
+            st.info("Belum ada data survey yang tersimpan")
+    
+    df_drafts = draft_manager.load_all_drafts(SPREADSHEET_ID)
+    
+    if df_drafts.empty:
+        st.info("Belum ada data survey yang tersimpan. Silakan input dan simpan data pelanggan terlebih dahulu.")
+    else:
+        st.markdown(f"**Total: {len(df_drafts)} pelanggan**")
+        st.markdown("---")
+        
+        for idx, row in df_drafts.iterrows():
+            idpel_draft = str(row['ID Pelanggan'])
+            nama_draft = str(row['Nama'])
+            lokasi_draft = str(row['Lokasi'])
+            tanggal_save = str(row['Tanggal Save'])
+            jumlah_item = row['Jumlah_Item']
+            
+            with st.expander(f"{idpel_draft} ({nama_draft})", expanded=False):
+                col_info1, col_info2 = st.columns(2)
+                
+                with col_info1:
+                    st.markdown(f"**Lokasi:** {lokasi_draft}")
+                    st.markdown(f"**Tersimpan:** {tanggal_save}")
+                
+                with col_info2:
+                    st.markdown(f"**Jumlah Item:** {jumlah_item} barang")
+                
+                if st.checkbox("Lihat Detail Barang", key=f"detail_{idpel_draft}"):
+                    barang_list = row['Barang_List']
+                    if barang_list:
+                        df_barang = pd.DataFrame(barang_list)
+                        if 'Harga Satuan Material' in df_barang.columns:
+                            df_barang['Harga Satuan Material'] = df_barang['Harga Satuan Material'].apply(format_rupiah)
+                        if 'Harga Total' in df_barang.columns:
+                            df_barang['Harga Total'] = df_barang['Harga Total'].apply(format_rupiah)
+                        
+                        st.dataframe(
+                            df_barang[['Rincian', 'SAT', 'Vol', 'Harga Satuan Material', 'Harga Total']],
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                
+                st.markdown("---")
+                
+                col_btn1, col_btn2, col_btn3 = st.columns(3)
+                
+                with col_btn1:
+                    if st.button("Export", key=f"export_{idpel_draft}", use_container_width=True, type="primary"):
+                        if draft_manager is not None:
+                            draft_full = draft_manager.load_single_draft(SPREADSHEET_ID, idpel_draft)
+                            
+                            if draft_full["found"]:
+                                data_full = draft_full["data"]
+                                
+                                nama_with_id = f"{data_full.get('nama', '-')} ({idpel_draft})"
+                                meta = {
+                                    "Pekerjaan": data_full.get('pekerjaan', '-'),
+                                    "Nama": nama_with_id,
+                                    "Lokasi": data_full.get('lokasi', '-'),
+                                    "ULP": data_full.get('ulp', '-'),
+                                    "No SPK": data_full.get('no_spk', '-'),
+                                    "Vendor": data_full.get('vendor', '-')
+                                }
+                                
+                                show_preview_dialog(data_full.get('barang', []), meta)
+                            else:
+                                st.error("Data tidak ditemukan")
+                        else:
+                            st.error("Draft manager tidak tersedia")
+                
+                with col_btn2:
+                    if st.button("Edit", key=f"edit_{idpel_draft}", use_container_width=True):
+                        show_edit_dialog(idpel_draft)
+                
+                with col_btn3:
+                    if f"confirm_delete_{idpel_draft}" not in st.session_state:
+                        st.session_state[f"confirm_delete_{idpel_draft}"] = False
+                    
+                    if not st.session_state[f"confirm_delete_{idpel_draft}"]:
+                        if st.button("Hapus", key=f"delete_{idpel_draft}", use_container_width=True):
+                            st.session_state[f"confirm_delete_{idpel_draft}"] = True
+                            st.rerun()
+                    else:
+                        col_del1, col_del2 = st.columns(2)
+                        
+                        with col_del1:
+                            if st.button("Batal", key=f"cancel_delete_{idpel_draft}", use_container_width=True):
+                                st.session_state[f"confirm_delete_{idpel_draft}"] = False
+                                st.rerun()
+                        
+                        with col_del2:
+                            if st.button("Yakin?", key=f"confirm_delete_yes_{idpel_draft}", 
+                                       use_container_width=True, type="primary"):
+                                with st.spinner("Menghapus data..."):
+                                    if draft_manager is not None:
+                                        result = draft_manager.delete_draft_survey(SPREADSHEET_ID, idpel_draft)
+                                        
+                                        if result["success"]:
+                                            st.success(result['message'])
+                                            st.cache_data.clear()
+                                            if f"confirm_delete_{idpel_draft}" in st.session_state:
+                                                del st.session_state[f"confirm_delete_{idpel_draft}"]
+                                            time.sleep(1)
+                                            st.rerun()
+                                        else:
+                                            st.error(result['message'])
+                                    else:
+                                        st.error("Draft manager tidak tersedia")
+                
+                st.markdown("---")

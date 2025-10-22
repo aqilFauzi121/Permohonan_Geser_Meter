@@ -1,4 +1,3 @@
-# export_rekap_sheets.py - Simplified with Template Formulas
 import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Any
@@ -6,7 +5,6 @@ import pandas as pd
 import streamlit as st
 from auth import get_gspread_client
 
-# Timezone helper
 try:
     from zoneinfo import ZoneInfo
     def now_jakarta():
@@ -15,7 +13,6 @@ except Exception:
     def now_jakarta():
         return datetime.utcnow() + timedelta(hours=7)
 
-# Retention: keep latest 40 tabs
 KEEP_LATEST_TABS = 40
 _RE_REKAP = re.compile(r"^REKAP\s+.+?\s*-\s*(\d{8}[_-]\d{4})_(Vendor|Pelanggan)$")
 
@@ -30,6 +27,7 @@ def _parse_dt_from_title(title: str) -> Optional[datetime]:
         return None
 
 def cleanup_old_rekap(sh, keep_latest: int = KEEP_LATEST_TABS) -> None:
+    """Remove old recap sheets, keeping only the latest N sheets."""
     candidates: List[tuple[Optional[datetime], Any]] = []
     for ws in sh.worksheets():
         if ws.title.startswith("REKAP "):
@@ -47,19 +45,15 @@ def cleanup_old_rekap(sh, keep_latest: int = KEEP_LATEST_TABS) -> None:
         except Exception:
             pass
 
-# Template titles
-TEMPLATE_VENDOR_TITLE = "Template Vendor"
-TEMPLATE_PELANGGAN_TITLE = "Template Pelanggan"
-
 try:
     TEMPLATE_VENDOR_TITLE = str(st.secrets.get("TEMPLATE_VENDOR_TITLE", "Template Vendor"))
     TEMPLATE_PELANGGAN_TITLE = str(st.secrets.get("TEMPLATE_PELANGGAN_TITLE", "Template Pelanggan"))
 except Exception:
-    pass
+    TEMPLATE_VENDOR_TITLE = "Template Vendor"
+    TEMPLATE_PELANGGAN_TITLE = "Template Pelanggan"
 
-_N_BARIS_ITEM = 13  # Row 14-26
+_N_BARIS_ITEM = 11
 
-# Item mapping to template rows
 TEMPLATE_ORDER = [
     "Jasa Kegiatan Geser APP",
     "Jasa Kegiatan Geser Perubahan Situasi SR",
@@ -72,18 +66,16 @@ TEMPLATE_ORDER = [
     "Conn. press AL/AL type 10-16 mm2 / 50-70 mm2 + Scoot + Cover",
     "Segel Plastik",
     "Twisted Cable 2 x 10 mm² - Al",
-    "Asuransi",
-    "Twisted Cable 2x10 mm² - Al",
 ]
 
 def _normalize(s: str) -> str:
+    """Normalize item names for consistent matching."""
     s = str(s or "").lower()
     s = s.replace("–", "-").replace("—", "-").replace(""", '"').replace(""", '"').replace("'", "'")
     s = s.replace("mm2", "mm²").replace("mm^2", "mm²")
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
-# Aliases for item name variations
 ALIASES = {
     _normalize("Jasa Kegiatan"): _normalize("Jasa Kegiatan Geser APP"),
     _normalize("Jasa Kegiatan Geser APP"): _normalize("Jasa Kegiatan Geser APP"),
@@ -103,17 +95,17 @@ ALIASES = {
     _normalize('Pole Bracket 3-9"'): _normalize('Pole Bracket 3-9"'),
     _normalize("Twisted Cable 2 x 10 mm² - Al"): _normalize("Twisted Cable 2 x 10 mm² - Al"),
     _normalize("Twisted Cable 2 x 10 mm² – Al"): _normalize("Twisted Cable 2 x 10 mm² - Al"),
-    _normalize("Twisted Cable 2x10 mm² - Al"): _normalize("Twisted Cable 2x10 mm² - Al"),
-    _normalize("Twisted Cable 2x10 mm² – Al"): _normalize("Twisted Cable 2x10 mm² - Al"),
 }
 
 _TEMPLATE_INDEX = {_normalize(n): i for i, n in enumerate(TEMPLATE_ORDER)}
 
 def _find_template_row_index(item_name: str) -> Optional[int]:
+    """Find the template row index for a given item name."""
     key = ALIASES.get(_normalize(item_name), _normalize(item_name))
     return _TEMPLATE_INDEX.get(key)
 
 def _to_int(v, default=0) -> int:
+    """Convert value to integer safely."""
     try:
         x = pd.to_numeric(v, errors="coerce")
         if pd.isna(x):
@@ -123,13 +115,21 @@ def _to_int(v, default=0) -> int:
         return int(default)
 
 def _to_sheet_values(grid: List[List[Optional[Any]]]) -> List[List[Any]]:
+    """Convert grid to sheet-compatible format."""
     out: List[List[Any]] = []
     for row in grid:
         v = row[0] if row else None
         out.append(["" if v is None else v])
     return out
 
-def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
+def update_tanggal_survey_if_empty(spreadsheet_id: str, gid: str, idpel: str) -> dict:
+    """
+    Update survey date only if the column is empty.
+    If already filled, will not overwrite.
+    
+    Returns:
+        Dict with success status, message, already_filled flag, row and col indices
+    """
     try:
         now = now_jakarta()
         gc = get_gspread_client()
@@ -142,29 +142,47 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
                 break
         
         if target_ws is None:
-            return {"success": False, "message": "Worksheet dengan GID tidak ditemukan", "row": 0, "col": 0}
+            return {
+                "success": False,
+                "message": "Worksheet dengan GID tidak ditemukan",
+                "already_filled": False,
+                "row": 0,
+                "col": 0
+            }
         
         header = target_ws.row_values(1)
         
         tanggal_survey_col = None
         for idx, col_name in enumerate(header):
-            normalized = str(col_name).strip().lower()
-            if "tanggal survey" in normalized or "tanggalsurvey" in normalized:
+            normalized = str(col_name).strip().lower().replace(" ", "")
+            if "tanggalsurvey" in normalized:
                 tanggal_survey_col = idx + 1
                 break
         
         if tanggal_survey_col is None:
-            return {"success": False, "message": "Kolom 'Tanggal Survey' tidak ditemukan", "row": 0, "col": 0}
+            return {
+                "success": False,
+                "message": "Kolom 'Tanggal Survey' tidak ditemukan",
+                "already_filled": False,
+                "row": 0,
+                "col": 0
+            }
         
         id_pelanggan_col = None
         for idx, col_name in enumerate(header):
-            normalized = str(col_name).strip().lower()
-            if "id pelanggan" in normalized or "idpelanggan" in normalized:
+            normalized = str(col_name).strip().lower().replace(" ", "")
+            if "idpelanggan" in normalized:
                 id_pelanggan_col = idx + 1
                 break
         
         if id_pelanggan_col is None:
-            return {"success": False, "message": "Kolom 'ID Pelanggan' tidak ditemukan", "row": 0, "col": 0}
+            return {
+                "success": False,
+                "message": "Kolom 'ID Pelanggan' tidak ditemukan",
+                "already_filled": False,
+                "row": 0,
+                "col": 0
+            }
         
         id_column_values = target_ws.col_values(id_pelanggan_col)
         
@@ -175,19 +193,44 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str) -> dict:
                 break
         
         if matched_row_index is None:
-            return {"success": False, "message": f"ID Pelanggan {idpel} tidak ditemukan di sheet", "row": 0, "col": 0}
+            return {
+                "success": False,
+                "message": f"ID Pelanggan {idpel} tidak ditemukan di sheet",
+                "already_filled": False,
+                "row": 0,
+                "col": 0
+            }
+        
+        current_value = target_ws.cell(matched_row_index, tanggal_survey_col).value
+        
+        if current_value and str(current_value).strip():
+            return {
+                "success": False,
+                "message": f"Tanggal Survey sudah terisi sebelumnya: {current_value}",
+                "already_filled": True,
+                "row": matched_row_index,
+                "col": tanggal_survey_col
+            }
         
         timestamp_str = now.strftime("%d/%m/%Y %H:%M:%S")
         target_ws.update_cell(matched_row_index, tanggal_survey_col, timestamp_str)
         
         return {
             "success": True,
-            "message": f"Berhasil update row {matched_row_index}, col {tanggal_survey_col} dengan waktu WIB: {timestamp_str}",
+            "message": f"Tanggal Survey berhasil diisi: {timestamp_str}",
+            "already_filled": False,
             "row": matched_row_index,
             "col": tanggal_survey_col
         }
+    
     except Exception as e:
-        return {"success": False, "message": f"Error: {str(e)}", "row": 0, "col": 0}
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}",
+            "already_filled": False,
+            "row": 0,
+            "col": 0
+        }
 
 def export_rekap_to_sheet(
     spreadsheet_id: str,
@@ -196,11 +239,10 @@ def export_rekap_to_sheet(
     df_pilih: pd.DataFrame,
     template_title: str,
 ):
-    """Export rekap with template formulas (only fill Identitas + Volume)"""
+    """Export recap using template formulas (fills only identitas and volume data)."""
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     
-    # Find template worksheet
     template_ws = None
     all_sheets = []
     for ws in sh.worksheets():
@@ -217,7 +259,6 @@ def export_rekap_to_sheet(
     
     template_id = template_ws.id
     
-    # Duplicate template
     dup_result = sh.batch_update({
         "requests": [{
             "duplicateSheet": {
@@ -229,7 +270,6 @@ def export_rekap_to_sheet(
     })
     new_sheet_id = dup_result["replies"][0]["duplicateSheet"]["properties"]["sheetId"]
     
-    # Identitas (C3:C8)
     identitas = [
         [meta.get("Pekerjaan", "-")],
         [meta.get("Nama", "-")],
@@ -239,7 +279,6 @@ def export_rekap_to_sheet(
         [meta.get("Vendor", "-")],
     ]
     
-    # Volume (C14:C26)
     if df_pilih is None or df_pilih.empty:
         df_norm = pd.DataFrame(columns=["Rincian", "Vol"])
     else:
@@ -260,12 +299,11 @@ def export_rekap_to_sheet(
         if qty > 0:
             vol_values[idx][0] = qty
     
-    # Batch update: only 2 ranges
     payload = {
         "valueInputOption": "USER_ENTERED",
         "data": [
             {"range": f"'{sheet_title}'!C3:C8", "values": identitas},
-            {"range": f"'{sheet_title}'!C14:C26", "values": _to_sheet_values(vol_values)},
+            {"range": f"'{sheet_title}'!C14:C24", "values": _to_sheet_values(vol_values)},
         ],
     }
     
@@ -292,8 +330,15 @@ def export_rekap_pair(
     df_pilih: pd.DataFrame,
     idpel: Optional[str] = None,
     gid: Optional[str] = None,
+    update_survey: bool = False
 ):
-    """Export Vendor + Pelanggan sheets with different templates"""
+    """
+    Export both vendor and customer recap sheets.
+    
+    Args:
+        update_survey: If True, updates survey date (for backward compatibility).
+                      If False, does not update (for new flow: SAVE -> EXPORT).
+    """
     info_vendor = export_rekap_to_sheet(
         spreadsheet_id=spreadsheet_id,
         sheet_title=base_sheet_title_vendor,
@@ -314,8 +359,9 @@ def export_rekap_pair(
     cleanup_old_rekap(sh, keep_latest=KEEP_LATEST_TABS)
     
     survey_result = {"success": False, "message": "Parameter tidak lengkap"}
-    if idpel is not None and gid is not None:
-        survey_result = update_tanggal_survey(spreadsheet_id, gid, idpel)
+    
+    if update_survey and idpel is not None and gid is not None:
+        survey_result = update_tanggal_survey_if_empty(spreadsheet_id, gid, idpel)
     
     return {
         "vendor": info_vendor,
