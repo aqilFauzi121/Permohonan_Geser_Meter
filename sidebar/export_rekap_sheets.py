@@ -1,3 +1,10 @@
+"""
+Export Rekap Sheets Module
+
+Handles exporting survey recap to Google Sheets using template-based approach.
+Templates contain formulas that are preserved during export - only identitas and volume are filled.
+"""
+
 import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Any
