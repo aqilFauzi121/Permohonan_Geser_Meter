@@ -298,7 +298,7 @@ def export_rekap_to_sheet(
         "data": [
             {"range": f"'{sheet_title}'!C3:C8", "values": identitas},
             {"range": f"'{sheet_title}'!C14:C24", "values": _to_sheet_values(vol_values)},
-            {"range": f"'{sheet_title}'!G30:H30", "values": [[tanggal_export]]},
+            {"range": f"'{sheet_title}'!G30", "values": [[tanggal_export]]},
         ],
     }
     
