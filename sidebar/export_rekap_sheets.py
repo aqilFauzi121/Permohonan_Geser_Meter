@@ -1,10 +1,3 @@
-"""
-Export Rekap Sheets Module
-
-Handles exporting survey recap to Google Sheets using template-based approach.
-Templates contain formulas that are preserved during export - only identitas and volume are filled.
-"""
-
 import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Any
@@ -34,7 +27,6 @@ def _parse_dt_from_title(title: str) -> Optional[datetime]:
         return None
 
 def cleanup_old_rekap(sh, keep_latest: int = KEEP_LATEST_TABS) -> None:
-    """Remove old recap sheets, keeping only the latest N sheets."""
     candidates: List[tuple[Optional[datetime], Any]] = []
     for ws in sh.worksheets():
         if ws.title.startswith("REKAP "):
@@ -76,7 +68,6 @@ TEMPLATE_ORDER = [
 ]
 
 def _normalize(s: str) -> str:
-    """Normalize item names for consistent matching."""
     s = str(s or "").lower()
     s = s.replace("–", "-").replace("—", "-").replace(""", '"').replace(""", '"').replace("'", "'")
     s = s.replace("mm2", "mm²").replace("mm^2", "mm²")
@@ -107,12 +98,10 @@ ALIASES = {
 _TEMPLATE_INDEX = {_normalize(n): i for i, n in enumerate(TEMPLATE_ORDER)}
 
 def _find_template_row_index(item_name: str) -> Optional[int]:
-    """Find the template row index for a given item name."""
     key = ALIASES.get(_normalize(item_name), _normalize(item_name))
     return _TEMPLATE_INDEX.get(key)
 
 def _to_int(v, default=0) -> int:
-    """Convert value to integer safely."""
     try:
         x = pd.to_numeric(v, errors="coerce")
         if pd.isna(x):
@@ -122,7 +111,6 @@ def _to_int(v, default=0) -> int:
         return int(default)
 
 def _to_sheet_values(grid: List[List[Optional[Any]]]) -> List[List[Any]]:
-    """Convert grid to sheet-compatible format."""
     out: List[List[Any]] = []
     for row in grid:
         v = row[0] if row else None
@@ -130,13 +118,6 @@ def _to_sheet_values(grid: List[List[Optional[Any]]]) -> List[List[Any]]:
     return out
 
 def update_tanggal_survey_if_empty(spreadsheet_id: str, gid: str, idpel: str) -> dict:
-    """
-    Update survey date only if the column is empty.
-    If already filled, will not overwrite.
-    
-    Returns:
-        Dict with success status, message, already_filled flag, row and col indices
-    """
     try:
         now = now_jakarta()
         gc = get_gspread_client()
@@ -246,7 +227,6 @@ def export_rekap_to_sheet(
     df_pilih: pd.DataFrame,
     template_title: str,
 ):
-    """Export recap using template formulas (fills only identitas and volume data)."""
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     
@@ -306,11 +286,19 @@ def export_rekap_to_sheet(
         if qty > 0:
             vol_values[idx][0] = qty
     
+    now = now_jakarta()
+    bulan_indonesia = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ]
+    tanggal_export = f"Malang, {now.day} {bulan_indonesia[now.month - 1]} {now.year}"
+    
     payload = {
         "valueInputOption": "USER_ENTERED",
         "data": [
             {"range": f"'{sheet_title}'!C3:C8", "values": identitas},
             {"range": f"'{sheet_title}'!C14:C24", "values": _to_sheet_values(vol_values)},
+            {"range": f"'{sheet_title}'!G30:H30", "values": [[tanggal_export]]},
         ],
     }
     
@@ -339,13 +327,6 @@ def export_rekap_pair(
     gid: Optional[str] = None,
     update_survey: bool = False
 ):
-    """
-    Export both vendor and customer recap sheets.
-    
-    Args:
-        update_survey: If True, updates survey date (for backward compatibility).
-                      If False, does not update (for new flow: SAVE -> EXPORT).
-    """
     info_vendor = export_rekap_to_sheet(
         spreadsheet_id=spreadsheet_id,
         sheet_title=base_sheet_title_vendor,
