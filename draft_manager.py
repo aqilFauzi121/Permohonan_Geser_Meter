@@ -29,7 +29,7 @@ def get_or_create_draft_sheet(spreadsheet_id: str) -> gspread.Worksheet:
         return ws
     
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet(title=DRAFT_SHEET_NAME, rows=1000, cols=10)
+        ws = sh.add_worksheet(title=DRAFT_SHEET_NAME, rows=1000, cols=11)
         
         headers = [
             "ID Pelanggan",
@@ -40,12 +40,13 @@ def get_or_create_draft_sheet(spreadsheet_id: str) -> gspread.Worksheet:
             "No SPK",
             "Vendor Pelaksana",
             "Data Barang (JSON)",
+            "Foto Survey (JSON)",
             "Tanggal Save",
             "Status Tanggal Survey"
         ]
-        ws.update('A1:J1', [headers])
+        ws.update('A1:K1', [headers])
         
-        ws.format('A1:J1', {
+        ws.format('A1:K1', {
             "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.6},
             "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}},
             "horizontalAlignment": "CENTER"
@@ -78,7 +79,8 @@ def save_draft_survey(
     ulp: str,
     no_spk: str,
     vendor: str,
-    barang_data: List[Dict[str, Any]]
+    barang_data: List[Dict[str, Any]],
+    foto_survey_links: Optional[List[Dict[str, str]]] = None
 ) -> Dict[str, Any]:
     try:
         ws = get_or_create_draft_sheet(spreadsheet_id)
@@ -91,12 +93,13 @@ def save_draft_survey(
                 break
         
         barang_json = json.dumps(barang_data, ensure_ascii=False)
+        foto_json = json.dumps(foto_survey_links or [], ensure_ascii=False)
         tanggal_save = now_jakarta().strftime("%d/%m/%Y %H:%M:%S")
         
         if existing_row:
-            ws.update(f'A{existing_row}:J{existing_row}', [[
+            ws.update(f'A{existing_row}:K{existing_row}', [[
                 idpel, nama, lokasi, pekerjaan, ulp, no_spk, vendor,
-                barang_json, tanggal_save, "Updated"
+                barang_json, foto_json, tanggal_save, "Updated"
             ]])
             
             return {
@@ -107,7 +110,7 @@ def save_draft_survey(
         else:
             ws.append_row([
                 idpel, nama, lokasi, pekerjaan, ulp, no_spk, vendor,
-                barang_json, tanggal_save, "Not Yet"
+                barang_json, foto_json, tanggal_save, "Not Yet"
             ])
             
             return {
@@ -146,6 +149,22 @@ def load_all_drafts(spreadsheet_id: str) -> pd.DataFrame:
         df['Barang_List'] = df['Data Barang (JSON)'].apply(parse_barang)
         df['Jumlah_Item'] = df['Barang_List'].apply(len)
         
+        # Parse foto survey
+        def parse_foto(json_str):
+            try:
+                if json_str and str(json_str).strip():
+                    return json.loads(json_str)
+                return []
+            except Exception:
+                return []
+        
+        if 'Foto Survey (JSON)' in df.columns:
+            df['Foto_List'] = df['Foto Survey (JSON)'].apply(parse_foto)
+            df['Jumlah_Foto'] = df['Foto_List'].apply(len)
+        else:
+            df['Foto_List'] = [[] for _ in range(len(df))]
+            df['Jumlah_Foto'] = 0
+        
         try:
             df['_sort_date'] = pd.to_datetime(
                 df['Tanggal Save'],
@@ -176,6 +195,11 @@ def load_single_draft(spreadsheet_id: str, idpel: str) -> Dict[str, Any]:
                 except Exception:
                     barang = []
                 
+                try:
+                    foto_survey = json.loads(row[8]) if len(row) > 8 and row[8] else []
+                except Exception:
+                    foto_survey = []
+                
                 return {
                     "found": True,
                     "data": {
@@ -187,8 +211,9 @@ def load_single_draft(spreadsheet_id: str, idpel: str) -> Dict[str, Any]:
                         "no_spk": row[5] if len(row) > 5 else "",
                         "vendor": row[6] if len(row) > 6 else "",
                         "barang": barang,
-                        "tanggal_save": row[8] if len(row) > 8 else "",
-                        "status_survey": row[9] if len(row) > 9 else ""
+                        "foto_survey": foto_survey,
+                        "tanggal_save": row[9] if len(row) > 9 else "",
+                        "status_survey": row[10] if len(row) > 10 else ""
                     }
                 }
         
