@@ -26,6 +26,34 @@ def get_or_create_draft_sheet(spreadsheet_id: str) -> gspread.Worksheet:
     
     try:
         ws = sh.worksheet(DRAFT_SHEET_NAME)
+        
+        # Check if sheet has correct structure (11 columns)
+        header = ws.row_values(1)
+        
+        # If missing "Foto Survey (JSON)" column, add it
+        if len(header) < 11 or "Foto Survey (JSON)" not in header:
+            # Update header to 11 columns
+            headers = [
+                "ID Pelanggan",
+                "Nama",
+                "Lokasi",
+                "Pekerjaan",
+                "ULP",
+                "No SPK",
+                "Vendor Pelaksana",
+                "Data Barang (JSON)",
+                "Foto Survey (JSON)",
+                "Tanggal Save",
+                "Status Tanggal Survey"
+            ]
+            ws.update('A1:K1', [headers])
+            
+            ws.format('A1:K1', {
+                "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.6},
+                "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}},
+                "horizontalAlignment": "CENTER"
+            })
+        
         return ws
     
     except gspread.WorksheetNotFound:
@@ -138,6 +166,9 @@ def load_all_drafts(spreadsheet_id: str) -> pd.DataFrame:
         
         df = pd.DataFrame(data)
         
+        # Debug: Print column names to check
+        # st.write("DEBUG Columns:", df.columns.tolist())
+        
         def parse_barang(json_str):
             try:
                 if json_str and str(json_str).strip():
@@ -146,10 +177,15 @@ def load_all_drafts(spreadsheet_id: str) -> pd.DataFrame:
             except Exception:
                 return []
         
-        df['Barang_List'] = df['Data Barang (JSON)'].apply(parse_barang)
-        df['Jumlah_Item'] = df['Barang_List'].apply(len)
+        # Parse barang dari kolom "Data Barang (JSON)"
+        if 'Data Barang (JSON)' in df.columns:
+            df['Barang_List'] = df['Data Barang (JSON)'].apply(parse_barang)
+            df['Jumlah_Item'] = df['Barang_List'].apply(len)
+        else:
+            df['Barang_List'] = [[] for _ in range(len(df))]
+            df['Jumlah_Item'] = 0
         
-        # Parse foto survey
+        # Parse foto survey dari kolom "Foto Survey (JSON)"
         def parse_foto(json_str):
             try:
                 if json_str and str(json_str).strip():
@@ -165,6 +201,7 @@ def load_all_drafts(spreadsheet_id: str) -> pd.DataFrame:
             df['Foto_List'] = [[] for _ in range(len(df))]
             df['Jumlah_Foto'] = 0
         
+        # Sort by tanggal save
         try:
             df['_sort_date'] = pd.to_datetime(
                 df['Tanggal Save'],

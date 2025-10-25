@@ -891,8 +891,21 @@ else:
                 nama_draft = str(row['Nama'])
                 lokasi_draft = str(row['Lokasi'])
                 tanggal_save = str(row['Tanggal Save'])
-                jumlah_item = row['Jumlah_Item']
-                jumlah_foto = row.get('Jumlah_Foto', 0)
+                jumlah_item = int(row['Jumlah_Item'])
+                
+                # Get jumlah foto safely
+                try:
+                    jumlah_foto = int(row.get('Jumlah_Foto', 0))
+                except (ValueError, TypeError):
+                    jumlah_foto = 0
+                
+                # Get foto list safely
+                try:
+                    foto_list = row.get('Foto_List', [])
+                    if not isinstance(foto_list, list):
+                        foto_list = []
+                except Exception:
+                    foto_list = []
                 
                 with st.expander(f"{idpel_draft} ({nama_draft})", expanded=False):
                     col_info1, col_info2 = st.columns(2)
