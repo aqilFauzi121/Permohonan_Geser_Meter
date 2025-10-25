@@ -2,11 +2,11 @@ import os
 import sys
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, date
 
 import streamlit as st
 import pandas as pd
-from auth import get_gspread_client
+from auth import get_gspread_client, get_or_create_folder, upload_file_to_drive
 
 try:
     from zoneinfo import ZoneInfo
@@ -41,6 +41,12 @@ try:
     SPREADSHEET_ID = str(st.secrets["SHEET_ID"])
     GID = str(st.secrets["SHEET_GID"])
     MASTER_HARGA_SHEET = str(st.secrets.get("MASTER_HARGA_SHEET", "Harga"))
+    DRIVE_FOLDER_SURVEY = str(st.secrets.get("DRIVE_FOLDER_SURVEY", ""))
+    
+    if not DRIVE_FOLDER_SURVEY:
+        st.error("DRIVE_FOLDER_SURVEY tidak diset di secrets!")
+        st.stop()
+        
 except Exception as e:
     st.error(f"Konfigurasi secrets tidak lengkap: {e}")
     st.stop()
@@ -473,6 +479,9 @@ def show_edit_dialog(idpel: str):
         else:
             with st.spinner("Menyimpan perubahan..."):
                 if draft_manager is not None:
+                    # Keep existing foto survey
+                    foto_survey_links = data.get('foto_survey', [])
+                    
                     result = draft_manager.save_draft_survey(
                         spreadsheet_id=SPREADSHEET_ID,
                         idpel=idpel,
@@ -482,7 +491,8 @@ def show_edit_dialog(idpel: str):
                         ulp=ulp or '',
                         no_spk=no_spk or '',
                         vendor=vendor or '',
-                        barang_data=barang_updated
+                        barang_data=barang_updated,
+                        foto_survey_links=foto_survey_links
                     )
                     
                     if result["success"]:
@@ -494,6 +504,34 @@ def show_edit_dialog(idpel: str):
                         st.error(result['message'])
                 else:
                     st.error("Draft manager tidak tersedia")
+
+
+@st.dialog("Lihat Foto Survey", width="large")
+def show_foto_survey_dialog(foto_list, nama, idpel):
+    st.markdown(f"### Foto Survey: {nama} ({idpel})")
+    st.markdown(f"**Jumlah Foto:** {len(foto_list)}")
+    st.markdown("---")
+    
+    if not foto_list:
+        st.info("Belum ada foto survey yang diupload.")
+        return
+    
+    # Display in grid (2 columns)
+    cols_per_row = 2
+    for i in range(0, len(foto_list), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j in range(cols_per_row):
+            idx = i + j
+            if idx < len(foto_list):
+                foto = foto_list[idx]
+                with cols[j]:
+                    st.markdown(f"**[{foto.get('name', 'Foto')}]({foto.get('link', '#')})**")
+                    if foto.get('link'):
+                        st.markdown(
+                            f'<a href="{foto["link"]}" target="_blank">'
+                            f'<img src="{foto["link"]}" style="width:100%; border-radius:8px; border:1px solid #ddd;"></a>',
+                            unsafe_allow_html=True
+                        )
 
 
 st.title("Daftar Barang & Input Petugas")
@@ -665,16 +703,81 @@ for idx, barang in enumerate(semua_barang):
 
 st.markdown("---")
 
+# Initialize variables
+uploaded_foto_survey = None
+tanggal_survey_input = date.today()
+
+# Upload Foto Survey Section
+if idpel_selected:
+    st.subheader("Upload Foto Survey")
+    
+    tanggal_survey_input = st.date_input(
+        "Tanggal Survey:",
+        value=date.today(),
+        key="tanggal_survey_date",
+        format="DD/MM/YYYY"
+    )
+    
+    uploaded_foto_survey = st.file_uploader(
+        "Upload Foto Dokumentasi Survey (JPG/PNG, minimal 1 foto, maksimal 5 foto):",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True,
+        key="upload_foto_survey",
+        help="Wajib upload minimal 1 foto survey"
+    )
+    
+    if uploaded_foto_survey:
+        if len(uploaded_foto_survey) > 5:
+            st.error("Maksimal 5 foto yang dapat diupload!")
+        else:
+            st.success(f"**Jumlah foto terpilih:** {len(uploaded_foto_survey)}")
+            cols = st.columns(min(len(uploaded_foto_survey), 4))
+            for idx, file in enumerate(uploaded_foto_survey):
+                with cols[idx % 4]:
+                    st.image(file, caption=file.name, width=150)
+
+st.markdown("---")
+
 if st.button("Simpan", type="primary", use_container_width=True):
     if not idpel_selected:
         st.error("Silakan pilih ID Pelanggan terlebih dahulu.")
     elif not barang_dipilih:
         st.error("Minimal 1 barang harus diisi (quantity > 0).")
+    elif not uploaded_foto_survey or len(uploaded_foto_survey) == 0:
+        st.error("Minimal 1 foto survey harus diupload!")
+    elif len(uploaded_foto_survey) > 5:
+        st.error("Maksimal 5 foto yang dapat diupload!")
     elif not HAVE_DRAFT_MANAGER or draft_manager is None:
         st.error("Draft manager tidak tersedia.")
     else:
-        with st.spinner("Menyimpan data..."):
+        with st.spinner("Mengupload foto survey dan menyimpan data..."):
             try:
+                # Format tanggal untuk filename
+                tanggal_prefix = tanggal_survey_input.strftime("%d%m%Y")
+                
+                # Create/get subfolder di Drive
+                subfolder_id = get_or_create_folder(DRIVE_FOLDER_SURVEY, idpel_selected)
+                
+                # Upload foto survey
+                foto_survey_links = []
+                for idx, file in enumerate(uploaded_foto_survey, 1):
+                    ext = file.name.split(".")[-1]
+                    # Format: IDPEL_DDMMYYYY_NAMA_survey_01.ext
+                    filename = f"{idpel_selected}_{tanggal_prefix}_{nama.replace(' ', '_')}_survey_{idx:02d}.{ext}"
+                    
+                    result = upload_file_to_drive(
+                        file_content=file.read(),
+                        filename=filename,
+                        folder_id=subfolder_id,
+                        mime_type=file.type
+                    )
+                    
+                    foto_survey_links.append({
+                        "name": filename,
+                        "link": result.get("webViewLink", "")
+                    })
+                
+                # Save draft with foto survey
                 result = draft_manager.save_draft_survey(
                     spreadsheet_id=SPREADSHEET_ID,
                     idpel=idpel_selected,
@@ -684,7 +787,8 @@ if st.button("Simpan", type="primary", use_container_width=True):
                     ulp=ulp or '',
                     no_spk=no_spk or '',
                     vendor=vendor or '',
-                    barang_data=barang_dipilih
+                    barang_data=barang_dipilih,
+                    foto_survey_links=foto_survey_links
                 )
                 
                 if not result["success"]:
@@ -700,14 +804,18 @@ if st.button("Simpan", type="primary", use_container_width=True):
                         if survey_result["success"]:
                             st.success(result['message'])
                             st.info(survey_result['message'])
+                            st.success(f"Berhasil upload {len(foto_survey_links)} foto survey!")
                         elif survey_result.get("already_filled", False):
                             st.success(result['message'])
                             st.info(survey_result['message'])
+                            st.success(f"Berhasil upload {len(foto_survey_links)} foto survey!")
                         else:
                             st.success(result['message'])
                             st.warning(f"Tanggal Survey: {survey_result['message']}")
+                            st.success(f"Berhasil upload {len(foto_survey_links)} foto survey!")
                     else:
                         st.success(f"{result['message']} (Data diperbarui)")
+                        st.success(f"Berhasil upload {len(foto_survey_links)} foto survey!")
                     
                     st.cache_data.clear()
                     time.sleep(1)
@@ -780,6 +888,7 @@ else:
                 lokasi_draft = str(row['Lokasi'])
                 tanggal_save = str(row['Tanggal Save'])
                 jumlah_item = row['Jumlah_Item']
+                jumlah_foto = row.get('Jumlah_Foto', 0)
                 
                 with st.expander(f"{idpel_draft} ({nama_draft})", expanded=False):
                     col_info1, col_info2 = st.columns(2)
@@ -790,6 +899,7 @@ else:
                     
                     with col_info2:
                         st.markdown(f"**Jumlah Item:** {jumlah_item} barang")
+                        st.markdown(f"**Jumlah Foto:** {jumlah_foto} foto")
                         
                         if st.checkbox("Lihat Detail Barang", key=f"detail_{idpel_draft}"):
                             pass
@@ -811,7 +921,7 @@ else:
                     
                     st.markdown("---")
                     
-                    col_btn1, col_btn2, col_btn3 = st.columns(3)
+                    col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
                     
                     with col_btn1:
                         if st.button("Export", key=f"export_{idpel_draft}", use_container_width=True, type="primary"):
@@ -842,6 +952,14 @@ else:
                             show_edit_dialog(idpel_draft)
                     
                     with col_btn3:
+                        if jumlah_foto > 0:
+                            if st.button("Lihat Foto Survey", key=f"foto_{idpel_draft}", use_container_width=True):
+                                foto_list = row['Foto_List']
+                                show_foto_survey_dialog(foto_list, nama_draft, idpel_draft)
+                        else:
+                            st.button("Lihat Foto Survey", key=f"foto_{idpel_draft}", use_container_width=True, disabled=True)
+                    
+                    with col_btn4:
                         if f"confirm_delete_{idpel_draft}" not in st.session_state:
                             st.session_state[f"confirm_delete_{idpel_draft}"] = False
                         
