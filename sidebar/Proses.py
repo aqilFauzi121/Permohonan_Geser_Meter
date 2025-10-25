@@ -516,6 +516,23 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
         st.info("Belum ada foto survey yang diupload.")
         return
     
+    # Helper function to convert Drive webViewLink to direct image link
+    def get_drive_image_url(link):
+        """Convert Google Drive webViewLink to direct image URL"""
+        try:
+            # Extract file ID from various Drive URL formats
+            if '/file/d/' in link:
+                file_id = link.split('/file/d/')[1].split('/')[0]
+            elif 'id=' in link:
+                file_id = link.split('id=')[1].split('&')[0]
+            else:
+                return link
+            
+            # Return thumbnail URL (size=w400 for preview)
+            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800"
+        except Exception:
+            return link
+    
     # Display in grid (2 columns)
     cols_per_row = 2
     for i in range(0, len(foto_list), cols_per_row):
@@ -525,13 +542,21 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
             if idx < len(foto_list):
                 foto = foto_list[idx]
                 with cols[j]:
-                    st.markdown(f"**[{foto.get('name', 'Foto')}]({foto.get('link', '#')})**")
-                    if foto.get('link'):
-                        st.markdown(
-                            f'<a href="{foto["link"]}" target="_blank">'
-                            f'<img src="{foto["link"]}" style="width:100%; border-radius:8px; border:1px solid #ddd;"></a>',
-                            unsafe_allow_html=True
-                        )
+                    # Display filename as link
+                    foto_name = foto.get('name', f'Foto {idx+1}')
+                    foto_link = foto.get('link', '#')
+                    
+                    st.markdown(f"**📷 [{foto_name}]({foto_link})**")
+                    
+                    # Try to display image with direct link
+                    if foto_link:
+                        try:
+                            direct_url = get_drive_image_url(foto_link)
+                            st.image(direct_url, use_container_width=True)
+                        except Exception as e:
+                            st.warning(f"Tidak dapat menampilkan preview. [Klik di sini untuk melihat foto]({foto_link})")
+                    
+                    st.markdown("---")
 
 
 st.title("Daftar Barang & Input Petugas")
