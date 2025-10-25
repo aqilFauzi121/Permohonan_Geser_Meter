@@ -752,6 +752,10 @@ if st.button("Simpan", type="primary", use_container_width=True):
     else:
         with st.spinner("Mengupload foto survey dan menyimpan data..."):
             try:
+                # Clear drive service cache if exists (prevent token issues)
+                if 'drive_service' in st.session_state:
+                    del st.session_state['drive_service']
+                
                 # Format tanggal untuk filename
                 tanggal_prefix = tanggal_survey_input.strftime("%d%m%Y")
                 
@@ -952,12 +956,17 @@ else:
                             show_edit_dialog(idpel_draft)
                     
                     with col_btn3:
-                        if jumlah_foto > 0:
+                        # Fix button logic - check if jumlah_foto > 0
+                        has_foto = jumlah_foto > 0
+                        
+                        if has_foto:
                             if st.button("Lihat Foto Survey", key=f"foto_{idpel_draft}", use_container_width=True):
                                 foto_list = row['Foto_List']
                                 show_foto_survey_dialog(foto_list, nama_draft, idpel_draft)
                         else:
-                            st.button("Lihat Foto Survey", key=f"foto_{idpel_draft}", use_container_width=True, disabled=True)
+                            st.button("Lihat Foto Survey", key=f"foto_{idpel_draft}", 
+                                    use_container_width=True, disabled=True, 
+                                    help="Belum ada foto survey")
                     
                     with col_btn4:
                         if f"confirm_delete_{idpel_draft}" not in st.session_state:
