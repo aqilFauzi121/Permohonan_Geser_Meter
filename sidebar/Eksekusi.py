@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime, date
 from auth import get_gspread_client, get_or_create_folder, upload_file_to_drive
 
-# === Konfigurasi ===
 try:
     SPREADSHEET_ID = str(st.secrets["SHEET_ID"])
     GID = str(st.secrets["SHEET_GID"])
@@ -87,12 +86,26 @@ def update_tanggal_eksekusi(spreadsheet_id: str, gid: str, idpel: str, tanggal: 
     except Exception as e:
         return {"success": False, "message": f"Error: {str(e)}"}
 
-# === UI ===
 st.title("Upload Dokumentasi Eksekusi")
 
 df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
 
 st.subheader("Pilih Pelanggan")
+
+if "TanggalEksekusi" in df_sheets.columns:
+    df_sheets_available = df_sheets[
+        (df_sheets["TanggalEksekusi"].isna()) | 
+        (df_sheets["TanggalEksekusi"].astype(str).str.strip() == "") |
+        (df_sheets["TanggalEksekusi"].astype(str).str.lower() == "nan")
+    ].copy()
+    
+    filtered_count = len(df_sheets_available)
+    total_count = len(df_sheets)
+    
+    st.info(f"Menampilkan {filtered_count} pelanggan yang belum eksekusi (dari total {total_count} pelanggan)")
+else:
+    df_sheets_available = df_sheets.copy()
+    st.warning("Kolom 'TanggalEksekusi' tidak ditemukan di spreadsheet")
 
 col_filter1, col_filter2 = st.columns(2)
 
@@ -110,7 +123,7 @@ with col_filter2:
         key="search_nama_eksekusi"
     )
 
-df_filtered = df_sheets.copy()
+df_filtered = df_sheets_available.copy()
 
 if search_id.strip():
     df_filtered = df_filtered[
@@ -130,12 +143,24 @@ if not df_filtered.empty:
         pnama = str(row.get("Nama", "-")).strip()
         if pid:
             filtered_options.append(f"{pid} ({pnama})")
+    
+    result_count = len(filtered_options) - 1
+    if result_count > 0:
+        st.success(f"Ditemukan {result_count} pelanggan yang belum eksekusi")
+    else:
+        st.warning("Tidak ditemukan pelanggan dengan kata kunci pencarian tersebut")
+else:
+    st.warning("Belum ada pelanggan yang perlu eksekusi")
 
-pilihan = st.selectbox(
-    "Pilih ID Pelanggan:",
-    filtered_options,
-    key="select_idpel_eksekusi"
-)
+if len(filtered_options) > 1:
+    pilihan = st.selectbox(
+        "Pilih ID Pelanggan:",
+        filtered_options,
+        key="select_idpel_eksekusi"
+    )
+else:
+    pilihan = "- Pilih ID Pelanggan -"
+    st.info("Silakan gunakan pencarian untuk menemukan pelanggan lain")
 
 def extract_id(opt: str) -> str:
     if not opt or opt == "- Pilih ID Pelanggan -":
@@ -193,10 +218,8 @@ if idpel_selected:
                 try:
                     tanggal_str = tanggal_eksekusi.strftime("%d/%m/%Y")
                     
-                    # Format: DDMMYYYY
                     tanggal_prefix = tanggal_eksekusi.strftime("%d%m%Y")
                     
-                    # Ensure 'nama' is always defined
                     df_selected = df_sheets[df_sheets["ID Pelanggan"].astype(str) == idpel_selected]
                     if not df_selected.empty:
                         nama = str(df_selected.iloc[0].get("Nama", "-"))
@@ -208,7 +231,6 @@ if idpel_selected:
                     uploaded_links = []
                     for idx, file in enumerate(uploaded_files, 1):
                         ext = file.name.split(".")[-1]
-                        # Format: IDPEL_YYYYMMDD_NAMA_01.ext
                         filename = f"{idpel_selected}_{tanggal_prefix}_{nama.replace(' ', '_')}_{idx:02d}.{ext}"
                         
                         result = upload_file_to_drive(

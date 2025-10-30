@@ -22,10 +22,10 @@ if THIS_DIR and THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
 
 try:
-    import draft_manager  # type: ignore
+    import draft_manager
     HAVE_DRAFT_MANAGER = True
 except Exception as e:
-    draft_manager = None  # type: ignore
+    draft_manager = None
     HAVE_DRAFT_MANAGER = False
     st.error(f"Error importing draft_manager: {e}")
 
@@ -479,7 +479,6 @@ def show_edit_dialog(idpel: str):
         else:
             with st.spinner("Menyimpan perubahan..."):
                 if draft_manager is not None:
-                    # Keep existing foto survey
                     foto_survey_links = data.get('foto_survey', [])
                     
                     result = draft_manager.save_draft_survey(
@@ -516,11 +515,8 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
         st.info("Belum ada foto survey yang diupload.")
         return
     
-    # Helper function to convert Drive webViewLink to direct image link
     def get_drive_image_url(link):
-        """Convert Google Drive webViewLink to direct image URL"""
         try:
-            # Extract file ID from various Drive URL formats
             if '/file/d/' in link:
                 file_id = link.split('/file/d/')[1].split('/')[0]
             elif 'id=' in link:
@@ -528,12 +524,10 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
             else:
                 return link
             
-            # Return thumbnail URL (size=w400 for preview)
             return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800"
         except Exception:
             return link
     
-    # Display in grid (2 columns)
     cols_per_row = 2
     for i in range(0, len(foto_list), cols_per_row):
         cols = st.columns(cols_per_row)
@@ -542,13 +536,11 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
             if idx < len(foto_list):
                 foto = foto_list[idx]
                 with cols[j]:
-                    # Display filename as link
                     foto_name = foto.get('name', f'Foto {idx+1}')
                     foto_link = foto.get('link', '#')
                     
-                    st.markdown(f"**📷 [{foto_name}]({foto_link})**")
+                    st.markdown(f"**[{foto_name}]({foto_link})**")
                     
-                    # Try to display image with direct link
                     if foto_link:
                         try:
                             direct_url = get_drive_image_url(foto_link)
@@ -568,24 +560,39 @@ else:
 
 st.subheader("Filter & Pilih Pelanggan")
 
-if "Timestamp" in df_sheets.columns:
+if "Tanggal Survey" in df_sheets.columns:
+    df_sheets_available = df_sheets[
+        (df_sheets["Tanggal Survey"].isna()) | 
+        (df_sheets["Tanggal Survey"].astype(str).str.strip() == "") |
+        (df_sheets["Tanggal Survey"].astype(str).str.lower() == "nan")
+    ].copy()
+    
+    filtered_count = len(df_sheets_available)
+    total_count = len(df_sheets)
+    
+    st.info(f"Menampilkan {filtered_count} pelanggan yang belum di-survey (dari total {total_count} pelanggan)")
+else:
+    df_sheets_available = df_sheets.copy()
+    st.warning("Kolom 'Tanggal Survey' tidak ditemukan di spreadsheet")
+
+if "Timestamp" in df_sheets_available.columns:
     try:
-        df_sheets["Date"] = pd.to_datetime(
-            df_sheets["Timestamp"],
+        df_sheets_available["Date"] = pd.to_datetime(
+            df_sheets_available["Timestamp"],
             format="%d/%m/%Y %H:%M:%S",
             errors='coerce'
         ).dt.date
     except Exception:
-        df_sheets["Date"] = pd.to_datetime(
-            df_sheets["Timestamp"],
+        df_sheets_available["Date"] = pd.to_datetime(
+            df_sheets_available["Timestamp"],
             errors='coerce'
         ).dt.date
 
 col_filter1, col_filter2 = st.columns(2)
 
 with col_filter1:
-    if "Date" in df_sheets.columns:
-        available_dates = df_sheets["Date"].dropna().unique()
+    if "Date" in df_sheets_available.columns:
+        available_dates = df_sheets_available["Date"].dropna().unique()
         available_dates = sorted([d for d in available_dates if d], reverse=True)
         
         date_options = ["Semua Tanggal"] + [str(d) for d in available_dates]
@@ -606,9 +613,9 @@ with col_filter2:
         key="filter_search"
     )
 
-df_filtered = df_sheets.copy()
+df_filtered = df_sheets_available.copy()
 
-if selected_date != "Semua Tanggal" and "Date" in df_sheets.columns:
+if selected_date != "Semua Tanggal" and "Date" in df_sheets_available.columns:
     df_filtered = df_filtered[df_filtered["Date"].astype(str) == selected_date]
 
 if search_text.strip():
@@ -631,11 +638,11 @@ if not df_filtered.empty:
     
     result_count = len(filtered_options) - 1
     if result_count > 0:
-        st.info(f"Ditemukan {result_count} pelanggan yang sesuai filter")
+        st.success(f"Ditemukan {result_count} pelanggan yang belum di-survey")
     else:
-        st.warning("Tidak ada pelanggan yang cocok dengan filter. Silakan ubah filter.")
+        st.warning("Tidak ditemukan pelanggan dengan kata kunci pencarian tersebut")
 else:
-    st.warning("Tidak ada pelanggan yang cocok dengan filter. Silakan ubah filter.")
+    st.warning("Belum ada pelanggan yang perlu di-survey")
 
 if len(filtered_options) > 1:
     pilihan_dropdown = st.selectbox(
@@ -645,7 +652,7 @@ if len(filtered_options) > 1:
     )
 else:
     pilihan_dropdown = "- Pilih ID Pelanggan -"
-    st.info("Silakan gunakan filter di atas untuk mencari pelanggan")
+    st.info("Silakan gunakan pencarian untuk menemukan pelanggan lain")
 
 def extract_id(opt: str) -> str:
     if not opt or opt == "- Pilih ID Pelanggan -":
@@ -728,11 +735,9 @@ for idx, barang in enumerate(semua_barang):
 
 st.markdown("---")
 
-# Initialize variables
 uploaded_foto_survey = None
 tanggal_survey_input = date.today()
 
-# Upload Foto Survey Section
 if idpel_selected:
     st.subheader("Upload Foto Survey")
     
@@ -777,21 +782,16 @@ if st.button("Simpan", type="primary", use_container_width=True):
     else:
         with st.spinner("Mengupload foto survey dan menyimpan data..."):
             try:
-                # Clear drive service cache if exists (prevent token issues)
                 if 'drive_service' in st.session_state:
                     del st.session_state['drive_service']
                 
-                # Format tanggal untuk filename
                 tanggal_prefix = tanggal_survey_input.strftime("%d%m%Y")
                 
-                # Create/get subfolder di Drive
                 subfolder_id = get_or_create_folder(DRIVE_FOLDER_SURVEY, idpel_selected)
                 
-                # Upload foto survey
                 foto_survey_links = []
                 for idx, file in enumerate(uploaded_foto_survey, 1):
                     ext = file.name.split(".")[-1]
-                    # Format: IDPEL_DDMMYYYY_NAMA_survey_01.ext
                     filename = f"{idpel_selected}_{tanggal_prefix}_{nama.replace(' ', '_')}_survey_{idx:02d}.{ext}"
                     
                     result = upload_file_to_drive(
@@ -806,7 +806,6 @@ if st.button("Simpan", type="primary", use_container_width=True):
                         "link": result.get("webViewLink", "")
                     })
                 
-                # Save draft with foto survey
                 result = draft_manager.save_draft_survey(
                     spreadsheet_id=SPREADSHEET_ID,
                     idpel=idpel_selected,
@@ -918,13 +917,11 @@ else:
                 tanggal_save = str(row['Tanggal Save'])
                 jumlah_item = int(row['Jumlah_Item'])
                 
-                # Get jumlah foto safely
                 try:
                     jumlah_foto = int(row.get('Jumlah_Foto', 0))
                 except (ValueError, TypeError):
                     jumlah_foto = 0
                 
-                # Get foto list safely
                 try:
                     foto_list = row.get('Foto_List', [])
                     if not isinstance(foto_list, list):
@@ -994,7 +991,6 @@ else:
                             show_edit_dialog(idpel_draft)
                     
                     with col_btn3:
-                        # Fix button logic - check if jumlah_foto > 0
                         has_foto = jumlah_foto > 0
                         
                         if has_foto:
@@ -1047,7 +1043,7 @@ else:
             
             with col_prev:
                 if st.session_state.current_page > 1:
-                    if st.button("◀ Sebelumnya", use_container_width=True):
+                    if st.button("Sebelumnya", use_container_width=True):
                         st.session_state.current_page -= 1
                         st.rerun()
             
@@ -1061,6 +1057,6 @@ else:
             
             with col_next:
                 if st.session_state.current_page < total_pages:
-                    if st.button("Selanjutnya ▶", use_container_width=True):
+                    if st.button("Selanjutnya", use_container_width=True):
                         st.session_state.current_page += 1
                         st.rerun()
