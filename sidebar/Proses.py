@@ -120,7 +120,7 @@ def load_sheet_by_name(spreadsheet_id, sheet_name):
         return None
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=180, show_spinner=False)
 def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
     ws = load_sheet_by_gid(spreadsheet_id, gid)
     data = ws.get_all_records()
@@ -214,6 +214,7 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
 
 if "pelanggan_loaded" not in st.session_state:
     st.session_state.pelanggan_loaded = False
+    st.session_state.pelanggan_cache_time = None
 
 if "harga_loaded" not in st.session_state:
     st.session_state.harga_loaded = False
@@ -222,6 +223,7 @@ if not st.session_state.pelanggan_loaded:
     df_sheets = fetch_pelanggan_df(SPREADSHEET_ID, GID)
     st.session_state.df_sheets = df_sheets
     st.session_state.pelanggan_loaded = True
+    st.session_state.pelanggan_cache_time = now_jakarta()
 else:
     df_sheets = st.session_state.df_sheets
 
@@ -553,10 +555,22 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
 
 st.title("Daftar Barang & Input Petugas")
 
-if is_from_sheets:
-    st.info(f"Harga dimuat dari sheet '{MASTER_HARGA_SHEET}'")
-else:
-    st.warning(f"Harga menggunakan data fallback. Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia.")
+col_header1, col_header3 = st.columns([2, 1])
+
+with col_header1:
+    if is_from_sheets:
+        st.info(f"Harga dimuat dari sheet '{MASTER_HARGA_SHEET}'")
+    else:
+        st.warning(f"Harga menggunakan data fallback. Pastikan sheet '{MASTER_HARGA_SHEET}' tersedia.")
+
+with col_header3:
+    if st.button("Refresh Data", use_container_width=True, type="primary"):
+        st.cache_data.clear()
+        st.session_state.pelanggan_loaded = False
+        st.session_state.harga_loaded = False
+        st.rerun()
+
+st.markdown("---")
 
 st.subheader("Filter & Pilih Pelanggan")
 
@@ -581,12 +595,27 @@ if "Timestamp" in df_sheets_available.columns:
             df_sheets_available["Timestamp"],
             format="%d/%m/%Y %H:%M:%S",
             errors='coerce'
-        ).dt.date
-    except Exception:
-        df_sheets_available["Date"] = pd.to_datetime(
-            df_sheets_available["Timestamp"],
-            errors='coerce'
-        ).dt.date
+        )
+        
+        mask_invalid = df_sheets_available["Date"].isna()
+        if mask_invalid.any():
+            df_sheets_available.loc[mask_invalid, "Date"] = pd.to_datetime(
+                df_sheets_available.loc[mask_invalid, "Timestamp"],
+                format="%d/%m/%Y",
+                errors='coerce'
+            )
+        
+        mask_still_invalid = df_sheets_available["Date"].isna()
+        if mask_still_invalid.any():
+            df_sheets_available.loc[mask_still_invalid, "Date"] = pd.to_datetime(
+                df_sheets_available.loc[mask_still_invalid, "Timestamp"],
+                errors='coerce'
+            )
+        
+        df_sheets_available["Date"] = df_sheets_available["Date"].dt.date
+    except Exception as e:
+        st.warning(f"Tidak dapat memparse tanggal: {e}")
+        df_sheets_available["Date"] = None
 
 col_filter1, col_filter2 = st.columns(2)
 
