@@ -476,8 +476,9 @@ if "TanggalEksekusi" in df_sheets.columns:
     
     with col_filter_date:
         if "Date_Eksekusi" in df_history.columns:
-            available_dates_history = df_history["Date_Eksekusi"].dropna().dt.date.unique()
-            available_dates_history = sorted([d for d in available_dates_history if d], reverse=True)
+            date_series = df_history["Date_Eksekusi"].dropna()
+            available_dates_history = date_series.apply(lambda x: x.date() if hasattr(x, 'date') else None).unique()
+            available_dates_history = sorted([d for d in available_dates_history if d is not None], reverse=True)
             
             date_options_history = ["Semua Tanggal"] + [str(d) for d in available_dates_history]
             
@@ -493,7 +494,7 @@ if "TanggalEksekusi" in df_sheets.columns:
     
     if selected_date_history != "Semua Tanggal" and "Date_Eksekusi" in df_history.columns:
         df_history_filtered = df_history_filtered[
-            df_history_filtered["Date_Eksekusi"].dt.date.astype(str) == selected_date_history
+            df_history_filtered["Date_Eksekusi"].apply(lambda x: str(x.date()) if pd.notna(x) else "") == selected_date_history
         ]
     
     if search_history.strip():
