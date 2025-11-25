@@ -51,3 +51,5 @@ QR_Code_Generated/
 sidebar/dynamic-house-*.json
 
 generate_token.py
+
+cloudflare-api.txt
