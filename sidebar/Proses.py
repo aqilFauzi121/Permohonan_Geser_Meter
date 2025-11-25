@@ -612,7 +612,7 @@ if "Timestamp" in df_sheets_available.columns:
                 errors='coerce'
             )
         
-        df_sheets_available["Date"] = df_sheets_available["Date"].dt.date
+        df_sheets_available["Date"] = pd.to_datetime(df_sheets_available["Date"]).dt.date
     except Exception as e:
         st.warning(f"Tidak dapat memparse tanggal: {e}")
         df_sheets_available["Date"] = None
