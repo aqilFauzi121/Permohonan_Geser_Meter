@@ -6,7 +6,14 @@ from datetime import datetime, date
 
 import streamlit as st
 import pandas as pd
-from auth import get_gspread_client, get_or_create_folder, upload_file_to_drive
+from auth import (
+    get_gspread_client, 
+    upload_to_r2, 
+    get_drive_thumbnail_url,
+    get_r2_client,
+    list_r2_objects,
+    delete_r2_object
+)
 
 try:
     from zoneinfo import ZoneInfo
@@ -38,21 +45,20 @@ except Exception:
     HAVE_EXPORT = False
 
 try:
+    # Load configuration from secrets
     SPREADSHEET_ID = str(st.secrets["SHEET_ID"])
     GID = str(st.secrets["SHEET_GID"])
     MASTER_HARGA_SHEET = str(st.secrets.get("MASTER_HARGA_SHEET", "Harga"))
-    DRIVE_FOLDER_SURVEY = str(st.secrets.get("DRIVE_FOLDER_SURVEY", ""))
+    R2_CONFIG = st.secrets["CLOUDFLARE_R2"]
+    FOLDER_FOTO_SURVEY = R2_CONFIG["FOLDER_FOTO_SURVEY"]
     
-    if not DRIVE_FOLDER_SURVEY:
-        st.error("DRIVE_FOLDER_SURVEY tidak diset di secrets!")
-        st.stop()
-        
 except Exception as e:
     st.error(f"Konfigurasi secrets tidak lengkap: {e}")
     st.stop()
 
 
 def format_rupiah(nilai):
+    # Format number to IDR currency format
     if pd.isna(nilai) or nilai == 0:
         return "0"
     
@@ -78,6 +84,7 @@ def format_rupiah(nilai):
 
 
 def parse_number_from_sheets(value):
+    # Parse number string from Google Sheets
     if pd.isna(value) or value == "" or value is None:
         return 0.0
     
@@ -99,6 +106,7 @@ def parse_number_from_sheets(value):
 
 
 def load_sheet_by_gid(spreadsheet_id, gid):
+    # Load specific worksheet by GID
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     target = None
@@ -112,6 +120,7 @@ def load_sheet_by_gid(spreadsheet_id, gid):
 
 
 def load_sheet_by_name(spreadsheet_id, sheet_name):
+    # Load specific worksheet by Name
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     try:
@@ -122,6 +131,7 @@ def load_sheet_by_name(spreadsheet_id, sheet_name):
 
 @st.cache_data(ttl=180, show_spinner=False)
 def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
+    # Fetch customer data
     ws = load_sheet_by_gid(spreadsheet_id, gid)
     data = ws.get_all_records()
     df = pd.DataFrame(data).fillna("")
@@ -130,6 +140,7 @@ def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
+    # Fetch price list from sheet
     harga_vendor_fallback = {
         "Jasa Kegiatan Geser APP": 93000.0,
         "Jasa Kegiatan Geser Perubahan Situasi SR": 79000.0,
@@ -301,6 +312,7 @@ semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga":
 
 @st.dialog("Preview Rekap", width="large")
 def show_preview_dialog(barang_dipilih, meta_data):
+    # Preview dialog for recap before export
     if not barang_dipilih:
         st.warning("Tidak ada barang yang dipilih.")
         return
@@ -416,6 +428,7 @@ def show_preview_dialog(barang_dipilih, meta_data):
 
 @st.dialog("Edit Data Survey", width="large")
 def show_edit_dialog(idpel: str):
+    # Dialog to edit saved survey draft
     if not HAVE_DRAFT_MANAGER or draft_manager is None:
         st.error("Draft manager tidak tersedia")
         return
@@ -454,7 +467,7 @@ def show_edit_dialog(idpel: str):
             
             default_val = existing_qty.get(barang['nama'], 0)
             qty = st.number_input(
-                f"{barang['nama']} ({barang['SAT']})",
+                f"{barang.get('nama', 'Item')} ({sat_label})",
                 min_value=0,
                 value=int(default_val),
                 key=f"edit_qty_{idx}_{idpel}"
@@ -507,28 +520,110 @@ def show_edit_dialog(idpel: str):
                     st.error("Draft manager tidak tersedia")
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_r2_image_bytes(object_key: str):
+    # Fetch image data directly from R2 using backend connection (bypass ISP blocks)
+    try:
+        s3_client = get_r2_client()
+        bucket_name = st.secrets["CLOUDFLARE_R2"]["BUCKET_NAME"]
+        
+        response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        return response['Body'].read()
+    except Exception:
+        return None
+
+def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str, value: str) -> dict:
+    # Helper function to clear/update survey date in the main spreadsheet
+    try:
+        gc = get_gspread_client()
+        sh = gc.open_by_key(spreadsheet_id)
+        
+        target_ws = None
+        for ws in sh.worksheets():
+            if str(ws.id) == str(gid):
+                target_ws = ws
+                break
+        
+        if target_ws is None:
+            return {"success": False, "message": "Worksheet tidak ditemukan"}
+        
+        header = target_ws.row_values(1)
+        
+        survey_col = None
+        for idx, col_name in enumerate(header):
+            if "tanggalsurvey" in str(col_name).strip().lower().replace(" ", ""):
+                survey_col = idx + 1
+                break
+        
+        if survey_col is None:
+            return {"success": False, "message": "Kolom Tanggal Survey tidak ditemukan"}
+            
+        id_col = None
+        for idx, col_name in enumerate(header):
+            if "id pelanggan" in str(col_name).strip().lower():
+                id_col = idx + 1
+                break
+        
+        if id_col is None:
+            return {"success": False, "message": "Kolom ID Pelanggan tidak ditemukan"}
+
+        id_values = target_ws.col_values(id_col)
+        matched_row = None
+        
+        for i in reversed(range(1, len(id_values))):
+            if str(id_values[i]).strip() == str(idpel).strip():
+                matched_row = i + 1
+                break
+        
+        if matched_row is None:
+            return {"success": False, "message": f"ID Pelanggan {idpel} tidak ditemukan"}
+        
+        target_ws.update_cell(matched_row, survey_col, value)
+        return {"success": True, "message": "Tanggal Survey updated"}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}
+
+def delete_survey_data_full(idpel: str):
+    # Function to delete survey draft, clear sheet date, and remove R2 photos (Complete Reset)
+    if draft_manager is None:
+        return {"success": False, "message": "Draft manager error"}
+    
+    try:
+        # 1. Hapus Foto di R2 (Prefix-based search)
+        prefix_r2 = f"{FOLDER_FOTO_SURVEY}{idpel}/"
+        r2_objects = list_r2_objects(prefix_r2)
+        
+        deleted_count = 0
+        for obj in r2_objects:
+            delete_r2_object(obj['key'])
+            deleted_count += 1
+        
+        # 2. Hapus Data Draft di Spreadsheet _DRAFT
+        res = draft_manager.delete_draft_survey(SPREADSHEET_ID, idpel)
+        
+        # 3. Kosongkan Tanggal Survey di Spreadsheet Utama
+        update_tanggal_survey(SPREADSHEET_ID, GID, idpel, "")
+        
+        if res["success"]:
+            return {"success": True, "message": f"{res['message']}. {deleted_count} foto R2 dihapus. Tanggal Survey direset."}
+        else:
+            return res
+
+    except Exception as e:
+        return {"success": False, "message": f"Error saat menghapus: {str(e)}"}
+
+
 @st.dialog("Lihat Foto Survey", width="large")
 def show_foto_survey_dialog(foto_list, nama, idpel):
-    st.markdown(f"### Foto Survey: {nama} ({idpel})")
+    # Preview survey photos with R2 download/delete buttons and Drive support
+    st.markdown(f"**Foto Survey:** {nama} ({idpel})")
     st.markdown(f"**Jumlah Foto:** {len(foto_list)}")
     st.markdown("---")
     
     if not foto_list:
         st.info("Belum ada foto survey yang diupload.")
         return
-    
-    def get_drive_image_url(link):
-        try:
-            if '/file/d/' in link:
-                file_id = link.split('/file/d/')[1].split('/')[0]
-            elif 'id=' in link:
-                file_id = link.split('id=')[1].split('&')[0]
-            else:
-                return link
-            
-            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800"
-        except Exception:
-            return link
     
     cols_per_row = 2
     for i in range(0, len(foto_list), cols_per_row):
@@ -539,18 +634,90 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
                 foto = foto_list[idx]
                 with cols[j]:
                     foto_name = foto.get('name', f'Foto {idx+1}')
-                    foto_link = foto.get('link', '#')
+                    raw_link = foto.get('url') or foto.get('link') or '#'
                     
-                    st.markdown(f"**[{foto_name}]({foto_link})**")
+                    # Clean UI: Filename acts as the link
+                    st.markdown(f"**[{foto_name}]({raw_link})**")
                     
-                    if foto_link:
+                    # Display logic: Drive vs R2
+                    if 'r2.dev' in raw_link or 'cloudflarestorage' in raw_link:
+                        # R2 Logic: Show Link + Download Button (Fallback)
+                        object_key = f"{FOLDER_FOTO_SURVEY}{idpel}/{foto_name}"
+                        img_bytes = fetch_r2_image_bytes(object_key)
+                        
+                        if img_bytes:
+                            st.image(img_bytes, use_container_width=True)
+                            
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                st.download_button(
+                                    label="Download",
+                                    data=img_bytes,
+                                    file_name=foto_name,
+                                    mime="image/jpeg",
+                                    key=f"dl_survey_{idx}_{idpel}",
+                                    use_container_width=True
+                                )
+                            with c2:
+                                # Tombol Hapus Foto Individu
+                                if st.button("Hapus", key=f"del_foto_survey_{idx}_{idpel}", type="primary", use_container_width=True):
+                                    if draft_manager is None:
+                                        st.error("Draft manager tidak tersedia.")
+                                    else:
+                                        # 1. Hapus Fisik di R2
+                                        del_res = delete_r2_object(object_key)
+                                        
+                                        if del_res["success"]:
+                                            # 2. Sinkronisasi Data Draft (PENTING)
+                                            draft = draft_manager.load_single_draft(SPREADSHEET_ID, idpel)
+                                            if draft["found"]:
+                                                data = draft["data"]
+                                                current_photos = data.get('foto_survey', [])
+                                                
+                                                # Filter foto yang tidak dihapus
+                                                updated_photos = [p for p in current_photos if p.get('name') != foto_name]
+                                                
+                                                # Simpan ulang draft dengan list foto yang sudah diupdate
+                                                save_res = draft_manager.save_draft_survey(
+                                                    spreadsheet_id=SPREADSHEET_ID,
+                                                    idpel=idpel,
+                                                    nama=data.get('nama', ''),
+                                                    lokasi=data.get('lokasi', ''),
+                                                    pekerjaan=data.get('pekerjaan', ''),
+                                                    ulp=data.get('ulp', ''),
+                                                    no_spk=data.get('no_spk', ''),
+                                                    vendor=data.get('vendor', ''),
+                                                    barang_data=data.get('barang', []),
+                                                    foto_survey_links=updated_photos
+                                                )
+                                                
+                                                if save_res["success"]:
+                                                    st.success("Foto terhapus dari R2 dan Data Draft!")
+                                                    st.cache_data.clear()
+                                                    time.sleep(1)
+                                                    st.rerun()
+                                                else:
+                                                    st.error("Gagal update data draft.")
+                                            else:
+                                                st.error("Data draft tidak ditemukan.")
+                                        else:
+                                            st.error(f"Gagal hapus R2: {del_res.get('error')}")
+
+                        else:
+                            st.warning("Gagal memuat gambar dari R2.")
+                            st.image(raw_link, use_container_width=True) # Fallback
+                            
+                    else:
+                        # Drive Logic: Link + Thumbnail preview
                         try:
-                            direct_url = get_drive_image_url(foto_link)
-                            st.image(direct_url, use_container_width=True)
-                        except Exception as e:
-                            st.warning(f"Tidak dapat menampilkan preview. [Klik di sini untuk melihat foto]({foto_link})")
+                            display_url = raw_link
+                            if 'drive.google.com' in raw_link:
+                                display_url = get_drive_thumbnail_url(raw_link)
+                            st.image(display_url, use_container_width=True)
+                        except Exception:
+                            st.warning("Preview tidak tersedia.")
                     
-                    st.markdown("---")
+                    st.markdown("<br>", unsafe_allow_html=True)
 
 
 st.title("Daftar Barang & Input Petugas")
@@ -684,6 +851,7 @@ else:
     st.info("Silakan gunakan pencarian untuk menemukan pelanggan lain")
 
 def extract_id(opt: str) -> str:
+    # Helper to extract ID from dropdown format
     if not opt or opt == "- Pilih ID Pelanggan -":
         return ""
     if " (" in opt:
@@ -811,29 +979,36 @@ if st.button("Simpan", type="primary", use_container_width=True):
     else:
         with st.spinner("Mengupload foto survey dan menyimpan data..."):
             try:
-                if 'drive_service' in st.session_state:
-                    del st.session_state['drive_service']
-                
                 tanggal_prefix = tanggal_survey_input.strftime("%d%m%Y")
                 
-                subfolder_id = get_or_create_folder(DRIVE_FOLDER_SURVEY, idpel_selected)
-                
                 foto_survey_links = []
+                upload_errors = []
+                
                 for idx, file in enumerate(uploaded_foto_survey, 1):
                     ext = file.name.split(".")[-1]
                     filename = f"{idpel_selected}_{tanggal_prefix}_{nama.replace(' ', '_')}_survey_{idx:02d}.{ext}"
                     
-                    result = upload_file_to_drive(
+                    object_key = f"{FOLDER_FOTO_SURVEY}{idpel_selected}/{filename}"
+                    content_type = file.type if file.type else 'image/jpeg'
+                    
+                    result = upload_to_r2(
                         file_content=file.read(),
-                        filename=filename,
-                        folder_id=subfolder_id,
-                        mime_type=file.type
+                        object_key=object_key,
+                        content_type=content_type
                     )
                     
-                    foto_survey_links.append({
-                        "name": filename,
-                        "link": result.get("webViewLink", "")
-                    })
+                    if result.get("success"):
+                        foto_survey_links.append({
+                            "name": filename,
+                            "url": result.get("public_url", "")
+                        })
+                    else:
+                        upload_errors.append(f"Gagal upload {filename}: {result.get('error')}")
+                
+                if upload_errors:
+                    for error in upload_errors:
+                        st.error(error)
+                    st.stop()
                 
                 result = draft_manager.save_draft_survey(
                     spreadsheet_id=SPREADSHEET_ID,
@@ -851,28 +1026,25 @@ if st.button("Simpan", type="primary", use_container_width=True):
                 if not result["success"]:
                     st.error(result['message'])
                 else:
-                    if result["is_new"]:
-                        from export_rekap_sheets import update_tanggal_survey_if_empty
-                        
-                        survey_result = update_tanggal_survey_if_empty(
-                            SPREADSHEET_ID, GID, idpel_selected
+                    try:
+                        # Update tanggal survey saat simpan
+                        survey_result = update_tanggal_survey(
+                            SPREADSHEET_ID, GID, idpel_selected, datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                         )
                         
                         if survey_result["success"]:
                             st.success(result['message'])
                             st.info(survey_result['message'])
-                            st.success(f"Berhasil upload {len(foto_survey_links)} foto survey!")
-                        elif survey_result.get("already_filled", False):
-                            st.success(result['message'])
-                            st.info(survey_result['message'])
-                            st.success(f"Berhasil upload {len(foto_survey_links)} foto survey!")
+                            st.success(f"Berhasil upload {len(foto_survey_links)} foto survey ke R2!")
                         else:
                             st.success(result['message'])
-                            st.warning(f"Tanggal Survey: {survey_result['message']}")
-                            st.success(f"Berhasil upload {len(foto_survey_links)} foto survey!")
-                    else:
-                        st.success(f"{result['message']} (Data diperbarui)")
-                        st.success(f"Berhasil upload {len(foto_survey_links)} foto survey!")
+                            st.warning(f"Gagal update Tanggal Survey: {survey_result['message']}")
+                            st.success(f"Berhasil upload {len(foto_survey_links)} foto survey ke R2!")
+                            
+                    except Exception as e_survey:
+                        st.success(result['message'])
+                        st.success(f"Berhasil upload {len(foto_survey_links)} foto survey ke R2!")
+                        st.warning(f"Gagal update Tanggal Survey: {str(e_survey)}")
                     
                     st.cache_data.clear()
                     time.sleep(1)
@@ -1049,10 +1221,10 @@ else:
                             
                             with col_del2:
                                 if st.button("Yakin?", key=f"confirm_delete_yes_{idpel_draft}", 
-                                           use_container_width=True, type="primary"):
+                                            use_container_width=True, type="primary"):
                                     with st.spinner("Menghapus data..."):
                                         if draft_manager is not None:
-                                            result = draft_manager.delete_draft_survey(SPREADSHEET_ID, idpel_draft)
+                                            result = delete_survey_data_full(idpel_draft)
                                             
                                             if result["success"]:
                                                 st.success(result['message'])

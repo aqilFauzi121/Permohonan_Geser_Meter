@@ -1,22 +1,31 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-from auth import get_gspread_client, get_or_create_folder, upload_file_to_drive, get_drive_service
+from auth import (
+    get_gspread_client, 
+    upload_to_r2, 
+    list_r2_objects,
+    list_drive_photos,
+    get_drive_thumbnail_url,
+    get_drive_service,
+    get_r2_client,
+    delete_r2_object # Import fungsi delete
+)
 
 try:
+    # Load configuration from secrets
     SPREADSHEET_ID = str(st.secrets["SHEET_ID"])
     GID = str(st.secrets["SHEET_GID"])
+    R2_CONFIG = st.secrets["CLOUDFLARE_R2"]
+    FOLDER_FOTO_EKSEKUSI = R2_CONFIG["FOLDER_FOTO_EKSEKUSI"]
     DRIVE_FOLDER_EKSEKUSI = str(st.secrets.get("DRIVE_FOLDER_EKSEKUSI", ""))
     
-    if not DRIVE_FOLDER_EKSEKUSI:
-        st.error("DRIVE_FOLDER_EKSEKUSI tidak diset di secrets!")
-        st.stop()
-        
 except Exception as e:
     st.error(f"Konfigurasi secrets tidak lengkap: {e}")
     st.stop()
 
 def load_sheet_by_gid(spreadsheet_id, gid):
+    # Load specific worksheet by its GID
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     target = None
@@ -30,11 +39,13 @@ def load_sheet_by_gid(spreadsheet_id, gid):
 
 @st.cache_data(ttl=180, show_spinner=False)
 def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
+    # Fetch customer data from Google Sheets
     ws = load_sheet_by_gid(spreadsheet_id, gid)
     data = ws.get_all_records()
     return pd.DataFrame(data).fillna("")
 
 def update_tanggal_eksekusi(spreadsheet_id: str, gid: str, idpel: str, tanggal: str) -> dict:
+    # Update the execution date column in the spreadsheet
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(spreadsheet_id)
@@ -86,137 +97,114 @@ def update_tanggal_eksekusi(spreadsheet_id: str, gid: str, idpel: str, tanggal: 
     except Exception as e:
         return {"success": False, "message": f"Error: {str(e)}"}
 
-def get_eksekusi_photos(idpel: str):
+def delete_eksekusi_data(spreadsheet_id: str, gid: str, idpel: str) -> dict:
+    # Function to delete execution data (reset date in sheets and delete photos in R2)
     try:
-        if 'drive_service' in st.session_state:
-            del st.session_state['drive_service']
+        # 1. Reset Tanggal Eksekusi di Spreadsheet (set to empty string)
+        update_res = update_tanggal_eksekusi(spreadsheet_id, gid, idpel, "")
+        if not update_res["success"]:
+            return update_res
+
+        # 2. Hapus Foto di R2
+        prefix_r2 = f"{FOLDER_FOTO_EKSEKUSI}{idpel}/"
+        r2_objects = list_r2_objects(prefix_r2)
         
+        deleted_count = 0
+        for obj in r2_objects:
+            delete_r2_object(obj['key'])
+            deleted_count += 1
+            
+        return {
+            "success": True, 
+            "message": f"Data eksekusi reset. {deleted_count} foto R2 dihapus."
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Error deleting data: {str(e)}"}
+
+def get_drive_folder_link(parent_folder_id, folder_name):
+    # Find specific subfolder ID inside parent folder to generate direct link
+    if not parent_folder_id:
+        return None
+        
+    try:
         service = get_drive_service()
         
-        query = f"name='{idpel}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        
-        results = service.files().list(
-            q=query,
-            spaces='drive',
-            fields='files(id, name, parents)',
-            pageSize=100
-        ).execute()
-        
-        folders = results.get('files', [])
-        
-        target_folder_id = None
-        for folder in folders:
-            parents = folder.get('parents', [])
-            if DRIVE_FOLDER_EKSEKUSI in parents:
-                target_folder_id = folder['id']
-                break
-        
-        if not target_folder_id:
-            return []
-        
-        query_files = f"'{target_folder_id}' in parents and trashed=false and (mimeType='image/jpeg' or mimeType='image/png')"
-        
-        files_results = service.files().list(
-            q=query_files,
-            spaces='drive',
-            fields='files(id, name, webViewLink)',
-            orderBy='name',
-            pageSize=100
-        ).execute()
-        
-        files = files_results.get('files', [])
-        
-        photo_links = []
-        for file in files:
-            photo_links.append({
-                "name": file['name'],
-                "link": file.get('webViewLink', ''),
-                "id": file['id']
-            })
-        
-        return photo_links
-        
-    except Exception as e:
-        error_msg = str(e).lower()
-        if 'invalid_grant' in error_msg or 'bad request' in error_msg:
-            return None
-        return []
+        # Check if service is valid to prevent Pylance "None" attribute error
+        if not service:
+            return f"https://drive.google.com/drive/search?q={folder_name}"
 
-def get_eksekusi_photos_service_account(idpel: str):
-    try:
-        from google.oauth2.service_account import Credentials as SACredentials
-        from googleapiclient.discovery import build
+        # Search for folder with exact name inside the parent folder
+        query = f"name = '{folder_name}' and '{parent_folder_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        results = service.files().list(q=query, fields="files(id, webViewLink)", pageSize=1).execute()
+        files = results.get('files', [])
         
-        sa_info = dict(st.secrets["service_account"])
-        pk = sa_info.get("private_key", "")
-        if "\\n" in pk:
-            sa_info["private_key"] = pk.replace("\\n", "\n")
-        
-        scopes = ["https://www.googleapis.com/auth/drive.readonly"]
-        creds = SACredentials.from_service_account_info(sa_info, scopes=scopes)
-        service = build('drive', 'v3', credentials=creds)
-        
-        query = f"name='{idpel}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        
-        results = service.files().list(
-            q=query,
-            spaces='drive',
-            fields='files(id, name, parents)',
-            pageSize=100
-        ).execute()
-        
-        folders = results.get('files', [])
-        
-        target_folder_id = None
-        for folder in folders:
-            parents = folder.get('parents', [])
-            if DRIVE_FOLDER_EKSEKUSI in parents:
-                target_folder_id = folder['id']
-                break
-        
-        if not target_folder_id:
-            return []
-        
-        query_files = f"'{target_folder_id}' in parents and trashed=false and (mimeType='image/jpeg' or mimeType='image/png')"
-        
-        files_results = service.files().list(
-            q=query_files,
-            spaces='drive',
-            fields='files(id, name, webViewLink)',
-            orderBy='name',
-            pageSize=100
-        ).execute()
-        
-        files = files_results.get('files', [])
-        
-        photo_links = []
-        for file in files:
-            photo_links.append({
-                "name": file['name'],
-                "link": file.get('webViewLink', ''),
-                "id": file['id']
-            })
-        
-        return photo_links
-        
+        if files:
+            return files[0].get('webViewLink')
     except Exception:
-        return []
+        pass
+        
+    # Fallback to search query if exact folder not found or error
+    return f"https://drive.google.com/drive/search?q={folder_name}"
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_r2_image_bytes(object_key: str):
+    # Fetch image data directly from R2 using backend connection (bypass ISP blocks)
+    try:
+        s3_client = get_r2_client()
+        bucket_name = st.secrets["CLOUDFLARE_R2"]["BUCKET_NAME"]
+        
+        response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        return response['Body'].read()
+    except Exception:
+        return None
+
+def get_eksekusi_photos(idpel: str):
+    # Retrieve photos from both Cloudflare R2 and Google Drive
+    all_photos = []
+    
+    # Attempt to load from Cloudflare R2
+    try:
+        prefix_r2 = f"{FOLDER_FOTO_EKSEKUSI}{idpel}/"
+        r2_objects = list_r2_objects(prefix_r2)
+        
+        for obj in r2_objects:
+            all_photos.append({
+                "name": obj["name"],
+                "url": obj["url"],
+                "key": obj.get("key", ""),
+                "source": "r2"
+            })
+    except Exception:
+        pass
+
+    # Attempt to load from Google Drive if configured
+    if DRIVE_FOLDER_EKSEKUSI:
+        try:
+            drive_photos = list_drive_photos(DRIVE_FOLDER_EKSEKUSI, idpel)
+            if drive_photos:
+                for photo in drive_photos:
+                    all_photos.append({
+                        "name": photo["name"],
+                        "url": photo["link"],
+                        "key": photo.get("id", ""),
+                        "source": "drive"
+                    })
+        except Exception:
+            pass
+            
+    return all_photos
 
 @st.dialog("Lihat Foto Eksekusi", width="large")
 def show_foto_eksekusi_dialog(foto_list, nama, idpel):
-    st.markdown(f"### Foto Eksekusi: {nama} ({idpel})")
+    # Preview photos with R2 download/delete buttons and Drive support
+    st.markdown(f"**Foto Eksekusi:** {nama} ({idpel})")
     st.markdown(f"**Jumlah Foto:** {len(foto_list)}")
     st.markdown("---")
     
     if not foto_list:
         st.info("Belum ada foto eksekusi yang diupload.")
         return
-    
-    def get_drive_image_url(file_id):
-        try:
-            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w800"
-        except Exception:
-            return None
     
     cols_per_row = 2
     for i in range(0, len(foto_list), cols_per_row):
@@ -227,22 +215,62 @@ def show_foto_eksekusi_dialog(foto_list, nama, idpel):
                 foto = foto_list[idx]
                 with cols[j]:
                     foto_name = foto.get('name', f'Foto {idx+1}')
-                    foto_link = foto.get('link', '#')
-                    foto_id = foto.get('id', '')
+                    raw_link = foto.get('url') or foto.get('link') or '#'
+                    foto_source = foto.get('source', 'unknown')
+                    foto_key = foto.get('key', '')
                     
-                    st.markdown(f"**[{foto_name}]({foto_link})**")
+                    # FIX: Gunakan raw_link, bukan foto_url
+                    if not raw_link or raw_link == '#':
+                        st.warning(f"URL tidak valid untuk {foto_name}")
+                        continue
                     
-                    if foto_id:
-                        try:
-                            direct_url = get_drive_image_url(foto_id)
-                            if direct_url:
-                                st.image(direct_url, use_container_width=True)
+                    # Clean UI: Filename acts as the link
+                    st.markdown(f"**[{foto_name}]({raw_link})**")
+                    
+                    # Display logic: R2 vs Drive
+                    try:
+                        if foto_source == "r2":
+                            # R2 Logic: Fetch bytes + Download + Delete
+                            img_bytes = None
+                            if foto_key:
+                                img_bytes = fetch_r2_image_bytes(foto_key)
+                            
+                            if img_bytes:
+                                st.image(img_bytes, use_container_width=True)
+                                
+                                c1, c2 = st.columns(2)
+                                with c1:
+                                    st.download_button(
+                                        label="Download",
+                                        data=img_bytes,
+                                        file_name=foto_name,
+                                        mime="image/jpeg",
+                                        key=f"dl_exec_{idx}_{idpel}",
+                                        use_container_width=True
+                                    )
+                                with c2:
+                                    if st.button("Hapus", key=f"del_exec_{idx}_{idpel}", type="primary", use_container_width=True):
+                                        del_res = delete_r2_object(foto_key)
+                                        if del_res["success"]:
+                                            st.success("Terhapus!")
+                                            st.rerun()
+                                        else:
+                                            st.error(f"Gagal: {del_res.get('error')}")
                             else:
-                                st.warning(f"[Klik di sini untuk melihat foto]({foto_link})")
-                        except Exception:
-                            st.warning(f"[Klik di sini untuk melihat foto]({foto_link})")
+                                st.warning("Gagal memuat gambar dari R2.")
+                                
+                        elif foto_source == "drive":
+                            # Drive Logic: Thumbnail helper only
+                            display_url = get_drive_thumbnail_url(raw_link)
+                            st.image(display_url, use_container_width=True)
+                        else:
+                            # Unknown source
+                            st.image(raw_link, use_container_width=True)
+                            
+                    except Exception:
+                        st.warning("Preview tidak tersedia.")
                     
-                    st.markdown("---")
+                    st.markdown("<br>", unsafe_allow_html=True)
 
 st.title("Upload Dokumentasi Eksekusi")
 
@@ -321,6 +349,7 @@ else:
     st.info("Silakan gunakan pencarian untuk menemukan pelanggan lain")
 
 def extract_id(opt: str) -> str:
+    # Extract ID from dropdown option string
     if not opt or opt == "- Pilih ID Pelanggan -":
         return ""
     if " (" in opt:
@@ -372,10 +401,9 @@ if idpel_selected:
         if not uploaded_files:
             st.error("Minimal 1 foto harus diupload.")
         else:
-            with st.spinner("Mengupload foto ke Google Drive dan update data..."):
+            with st.spinner("Mengupload foto ke Cloudflare R2 dan update data..."):
                 try:
                     tanggal_str = tanggal_eksekusi.strftime("%d/%m/%Y")
-                    
                     tanggal_prefix = tanggal_eksekusi.strftime("%d%m%Y")
                     
                     df_selected = df_sheets[df_sheets["ID Pelanggan"].astype(str) == idpel_selected]
@@ -384,24 +412,35 @@ if idpel_selected:
                     else:
                         nama = "-"
                     
-                    subfolder_id = get_or_create_folder(DRIVE_FOLDER_EKSEKUSI, idpel_selected)
-                    
                     uploaded_links = []
+                    upload_errors = []
+                    
+                    # Upload process to R2
                     for idx, file in enumerate(uploaded_files, 1):
                         ext = file.name.split(".")[-1]
                         filename = f"{idpel_selected}_{tanggal_prefix}_{nama.replace(' ', '_')}_{idx:02d}.{ext}"
                         
-                        result = upload_file_to_drive(
+                        object_key = f"{FOLDER_FOTO_EKSEKUSI}{idpel_selected}/{filename}"
+                        content_type = file.type if file.type else 'image/jpeg'
+                        
+                        result = upload_to_r2(
                             file_content=file.read(),
-                            filename=filename,
-                            folder_id=subfolder_id,
-                            mime_type=file.type
+                            object_key=object_key,
+                            content_type=content_type
                         )
                         
-                        uploaded_links.append({
-                            "name": filename,
-                            "link": result.get("webViewLink", "")
-                        })
+                        if result.get("success"):
+                            uploaded_links.append({
+                                "name": filename,
+                                "url": result.get("public_url", "")
+                            })
+                        else:
+                            upload_errors.append(f"Gagal upload {filename}: {result.get('error')}")
+                    
+                    if upload_errors:
+                        for error in upload_errors:
+                            st.error(error)
+                        st.stop()
                     
                     update_result = update_tanggal_eksekusi(
                         SPREADSHEET_ID,
@@ -413,11 +452,11 @@ if idpel_selected:
                     if update_result["success"]:
                         st.success(f"Berhasil upload {len(uploaded_files)} foto dan update tanggal eksekusi.")
                         st.info(f"Tanggal Eksekusi: {tanggal_str}")
-                        st.info(f"Foto tersimpan di: Foto Eksekusi/{idpel_selected}/")
+                        st.info(f"Foto tersimpan di R2: `{FOLDER_FOTO_EKSEKUSI}{idpel_selected}/`")
                         
                         with st.expander("Detail Foto yang Diupload"):
                             for item in uploaded_links:
-                                st.write(f"- [{item['name']}]({item['link']})")
+                                st.write(f"- [{item['name']}]({item['url']})")
                         
                         st.balloons()
                         st.cache_data.clear()
@@ -545,36 +584,35 @@ if "TanggalEksekusi" in df_sheets.columns:
                     st.markdown(f"**Nama:** {nama_history}")
                     st.markdown(f"**Alamat:** {alamat_history}")
                 
+                # Initialize count variables
+                foto_list = []
+                jumlah_foto = 0
+                r2_count = 0
+                drive_count = 0
+                foto_error = False
+
                 with col_info2:
                     st.markdown(f"**Tanggal Eksekusi:** {tanggal_eksekusi_history}")
                     
-                    foto_list = []
-                    jumlah_foto = 0
-                    foto_error = False
-                    
                     try:
-                        foto_result = get_eksekusi_photos(idpel_history)
-                        if foto_result is None:
-                            foto_result = get_eksekusi_photos_service_account(idpel_history)
-                            if foto_result:
-                                foto_list = foto_result
-                                jumlah_foto = len(foto_list)
-                            else:
-                                foto_error = True
-                                st.caption("⚠️ Tidak dapat memuat foto")
-                        else:
-                            foto_list = foto_result
-                            jumlah_foto = len(foto_list)
+                        foto_list = get_eksekusi_photos(idpel_history)
+                        jumlah_foto = len(foto_list)
                     except Exception as e:
                         foto_error = True
-                        st.caption(f"⚠️ Error loading photos")
+                        st.caption(f"Error loading photos: {str(e)}")
                     
                     if not foto_error:
-                        st.markdown(f"**Jumlah Foto:** {jumlah_foto} foto")
+                        r2_count = sum(1 for f in foto_list if f.get('source') == 'r2')
+                        drive_count = sum(1 for f in foto_list if f.get('source') == 'drive')
+                        
+                        if r2_count > 0 or drive_count > 0:
+                            st.markdown(f"**Jumlah Foto:** {jumlah_foto} (R2: {r2_count}, Drive: {drive_count})")
+                        else:
+                            st.markdown(f"**Jumlah Foto:** 0")
                 
                 st.markdown("---")
                 
-                col_btn1, col_btn2 = st.columns([1, 3])
+                col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
                 
                 with col_btn1:
                     if jumlah_foto > 0:
@@ -585,12 +623,58 @@ if "TanggalEksekusi" in df_sheets.columns:
                                 use_container_width=True, disabled=True, help="Belum ada foto")
                 
                 with col_btn2:
-                    if jumlah_foto > 0:
-                        folder_link = f"https://drive.google.com/drive/folders/{DRIVE_FOLDER_EKSEKUSI}"
+                    # Conditional display for Drive link
+                    if drive_count > 0:
+                        drive_link = get_drive_folder_link(DRIVE_FOLDER_EKSEKUSI, idpel_history)
                         st.markdown(
-                            f"[Buka Folder di Google Drive ↗]({folder_link})",
+                            f"""
+                            <div style="display: flex; align-items: center; height: 100%;">
+                                <a href="{drive_link}" target="_blank" style="text-decoration: none; color: #4A90E2; font-weight: 500;">
+                                    Buka Folder di Drive ↗
+                                </a>
+                            </div>
+                            """, 
                             unsafe_allow_html=True
                         )
+                    elif r2_count > 0:
+                        st.markdown(
+                            """
+                            <div style="display: flex; align-items: center; height: 100%;">
+                                <span style="color: #666; font-style: italic;">
+                                    Penyimpanan: R2
+                                </span>
+                            </div>
+                            """, 
+                            unsafe_allow_html=True
+                        )
+                
+                with col_btn3:
+                    # Tombol Hapus Data Eksekusi (Reset)
+                    # Hanya muncul jika ada data eksekusi (tanggal terisi)
+                    if st.button("Hapus Data", key=f"reset_data_{idpel_history}", type="secondary", use_container_width=True):
+                        # Konfirmasi hapus
+                        delete_modal_key = f"del_confirm_{idpel_history}"
+                        if delete_modal_key not in st.session_state:
+                            st.session_state[delete_modal_key] = True
+                        
+                    if st.session_state.get(f"del_confirm_{idpel_history}", False):
+                        st.warning("Yakin hapus data eksekusi? Foto di R2 akan dihapus permanen.")
+                        col_y, col_n = st.columns(2)
+                        with col_y:
+                            if st.button("Ya, Hapus", key=f"yes_del_{idpel_history}"):
+                                with st.spinner("Menghapus data..."):
+                                    res = delete_eksekusi_data(SPREADSHEET_ID, GID, idpel_history)
+                                    if res["success"]:
+                                        st.success(res["message"])
+                                        st.session_state[f"del_confirm_{idpel_history}"] = False
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                    else:
+                                        st.error(res["message"])
+                        with col_n:
+                            if st.button("Batal", key=f"no_del_{idpel_history}"):
+                                st.session_state[f"del_confirm_{idpel_history}"] = False
+                                st.rerun()
         
         st.markdown("---")
         
