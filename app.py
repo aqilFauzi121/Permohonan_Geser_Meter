@@ -126,7 +126,6 @@ st.sidebar.markdown(
 pages = {
     "Proses": "Proses",
     "Eksekusi": "Eksekusi",
-    "Data Pelanggan": "Data_pelanggan",
 }
 
 choice = st.sidebar.selectbox(
