@@ -50,6 +50,11 @@ QR_Code_Generated/
 # Your previous local JSON (specific pattern, just in case it still exists)
 sidebar/dynamic-house-*.json
 
+# Refresh OAuth tokens
 generate_token.py
 
+# Cloudflare API token file
 cloudflare-api.txt
+
+# Visualisasi Data Pelanggan
+sidebar/Data_Pelanggan.py
