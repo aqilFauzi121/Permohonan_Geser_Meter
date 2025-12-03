@@ -295,8 +295,8 @@ def count_drafts(spreadsheet_id: str) -> int:
         return 0
 
 
-def sync_to_sheet5(spreadsheet_id: str, target_sheet_name: str = "Sheet5") -> Dict[str, Any]:
-    # Synchronize draft data to Sheet5 starting from row 2, respecting existing headers.
+def sync_to_Rekap_Material(spreadsheet_id: str, target_sheet_name: str = "Rekap_Material") -> Dict[str, Any]:
+    # Synchronize draft data to Rekap_Material starting from row 2, respecting existing headers.
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(spreadsheet_id)
@@ -307,7 +307,7 @@ def sync_to_sheet5(spreadsheet_id: str, target_sheet_name: str = "Sheet5") -> Di
         if not draft_records:
             return {"success": True, "message": "Tidak ada data draft untuk disinkronisasi."}
 
-        # Define item keys strictly matching Sheet5 column order (Cols D - N).
+        # Define item keys strictly matching Rekap_Material column order (Cols D - N).
         # REMOVED "Segel Plastik" to match user's sheet columns.
         target_items_order = [
             "Jasa Kegiatan Geser APP",

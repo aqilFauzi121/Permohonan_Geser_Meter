@@ -1068,10 +1068,10 @@ else:
             st.rerun()
             
     with col_tools_2:
-        if st.button("Sync ke Sheet5 (Kolektif)", use_container_width=True, type="secondary", help="Update data Sheet5 dengan seluruh data survey yang tersimpan"):
-            with st.spinner("Sedang sinkronisasi data ke Sheet5..."):
+        if st.button("Sync ke Rekap_Material (Kolektif)", use_container_width=True, type="secondary", help="Update data Rekap_Material dengan seluruh data survey yang tersimpan"):
+            with st.spinner("Sedang sinkronisasi data ke Rekap_Material..."):
                 try:
-                    res = draft_manager.sync_to_sheet5(SPREADSHEET_ID, "Sheet5")
+                    res = draft_manager.sync_to_Rekap_Material(SPREADSHEET_ID, "Rekap_Material")
                     if res["success"]:
                         st.success(res["message"])
                     else:
