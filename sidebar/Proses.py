@@ -15,6 +15,7 @@ from auth import (
     delete_r2_object
 )
 
+# Configure timezone handling.
 try:
     from zoneinfo import ZoneInfo
     def now_jakarta():
@@ -24,10 +25,12 @@ except Exception:
     def now_jakarta():
         return datetime.utcnow() + timedelta(hours=7)
 
+# Add current directory to path for module imports.
 THIS_DIR = os.path.dirname(__file__)
 if THIS_DIR and THIS_DIR not in sys.path:
     sys.path.insert(0, THIS_DIR)
 
+# Import draft manager module.
 try:
     import draft_manager
     HAVE_DRAFT_MANAGER = True
@@ -36,6 +39,7 @@ except Exception as e:
     HAVE_DRAFT_MANAGER = False
     st.error(f"Error importing draft_manager: {e}")
 
+# Import export module.
 try:
     import export_rekap_sheets as _export_mod
     export_rekap_to_sheet = getattr(_export_mod, "export_rekap_to_sheet", None)
@@ -44,8 +48,8 @@ except Exception:
     export_rekap_to_sheet = None
     HAVE_EXPORT = False
 
+# Load secrets configuration.
 try:
-    # Load configuration from secrets
     SPREADSHEET_ID = str(st.secrets["SHEET_ID"])
     GID = str(st.secrets["SHEET_GID"])
     MASTER_HARGA_SHEET = str(st.secrets.get("MASTER_HARGA_SHEET", "Harga"))
@@ -58,7 +62,7 @@ except Exception as e:
 
 
 def format_rupiah(nilai):
-    # Format number to IDR currency format
+    # Convert number to Indonesian Rupiah string format.
     if pd.isna(nilai) or nilai == 0:
         return "0"
     
@@ -84,7 +88,7 @@ def format_rupiah(nilai):
 
 
 def parse_number_from_sheets(value):
-    # Parse number string from Google Sheets
+    # Parse string from sheets into a float.
     if pd.isna(value) or value == "" or value is None:
         return 0.0
     
@@ -106,7 +110,7 @@ def parse_number_from_sheets(value):
 
 
 def load_sheet_by_gid(spreadsheet_id, gid):
-    # Load specific worksheet by GID
+    # Get worksheet object by GID.
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     target = None
@@ -120,7 +124,7 @@ def load_sheet_by_gid(spreadsheet_id, gid):
 
 
 def load_sheet_by_name(spreadsheet_id, sheet_name):
-    # Load specific worksheet by Name
+    # Get worksheet object by name.
     gc = get_gspread_client()
     sh = gc.open_by_key(spreadsheet_id)
     try:
@@ -131,7 +135,7 @@ def load_sheet_by_name(spreadsheet_id, sheet_name):
 
 @st.cache_data(ttl=180, show_spinner=False)
 def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
-    # Fetch customer data
+    # Fetch customer data from spreadsheet.
     ws = load_sheet_by_gid(spreadsheet_id, gid)
     data = ws.get_all_records()
     df = pd.DataFrame(data).fillna("")
@@ -140,7 +144,7 @@ def fetch_pelanggan_df(spreadsheet_id: str, gid: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
-    # Fetch price list from sheet
+    # Fetch price list from spreadsheet or use fallback.
     harga_vendor_fallback = {
         "Jasa Kegiatan Geser APP": 93000.0,
         "Jasa Kegiatan Geser Perubahan Situasi SR": 79000.0,
@@ -223,6 +227,7 @@ def fetch_master_harga(spreadsheet_id: str, sheet_name: str):
         return harga_vendor_fallback, harga_pelanggan_fallback, False
 
 
+# Initialize session state for data loading.
 if "pelanggan_loaded" not in st.session_state:
     st.session_state.pelanggan_loaded = False
     st.session_state.pelanggan_cache_time = None
@@ -249,6 +254,7 @@ else:
     harga_pelanggan = st.session_state.harga_pelanggan
     is_from_sheets = st.session_state.is_from_sheets
 
+# Create a mapping for customer ID to Name.
 id_to_name = {}
 if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
     if "Nama" in df_sheets.columns:
@@ -264,6 +270,7 @@ if not df_sheets.empty and "ID Pelanggan" in df_sheets.columns:
             if str(row.get("ID Pelanggan", "")).strip() != ""
         }
 
+# Define mapping for material units.
 sat_mapping = {
     "Jasa Kegiatan Geser APP": "PLG",
     "Jasa Kegiatan Geser Perubahan Situasi SR": "PLG",
@@ -278,6 +285,7 @@ sat_mapping = {
     "Twisted Cable 2 x 10 mm² - Al": "M",
 }
 
+# Define item lists.
 main_items = [
     "Jasa Kegiatan Geser APP",
     "Jasa Kegiatan Geser Perubahan Situasi SR",
@@ -295,6 +303,7 @@ additional_items = [
     "Twisted Cable 2 x 10 mm² - Al",
 ]
 
+# Build data structure for UI rendering.
 data_barang = []
 for nama in main_items:
     harga = harga_pelanggan.get(nama, 0)
@@ -312,7 +321,7 @@ semua_barang = data_barang + [{"nama": "---- PEMBATAS ----", "SAT": "", "harga":
 
 @st.dialog("Preview Rekap", width="large")
 def show_preview_dialog(barang_dipilih, meta_data):
-    # Preview dialog for recap before export
+    # Display preview dialog for cost recapitulation.
     if not barang_dipilih:
         st.warning("Tidak ada barang yang dipilih.")
         return
@@ -428,7 +437,7 @@ def show_preview_dialog(barang_dipilih, meta_data):
 
 @st.dialog("Edit Data Survey", width="large")
 def show_edit_dialog(idpel: str):
-    # Dialog to edit saved survey draft
+    # Display dialog form for editing existing draft data.
     if not HAVE_DRAFT_MANAGER or draft_manager is None:
         st.error("Draft manager tidak tersedia")
         return
@@ -522,7 +531,7 @@ def show_edit_dialog(idpel: str):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_r2_image_bytes(object_key: str):
-    # Fetch image data directly from R2 using backend connection (bypass ISP blocks)
+    # Retrieve image binary data from Cloudflare R2 bucket.
     try:
         s3_client = get_r2_client()
         bucket_name = st.secrets["CLOUDFLARE_R2"]["BUCKET_NAME"]
@@ -533,7 +542,7 @@ def fetch_r2_image_bytes(object_key: str):
         return None
 
 def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str, value: str) -> dict:
-    # Helper function to clear/update survey date in the main spreadsheet
+    # Update or clear the survey date column in the main spreadsheet.
     try:
         gc = get_gspread_client()
         sh = gc.open_by_key(spreadsheet_id)
@@ -585,12 +594,12 @@ def update_tanggal_survey(spreadsheet_id: str, gid: str, idpel: str, value: str)
         return {"success": False, "message": f"Error: {str(e)}"}
 
 def delete_survey_data_full(idpel: str):
-    # Function to delete survey draft, clear sheet date, and remove R2 photos (Complete Reset)
+    # Permanently remove survey data from draft, sheet, and R2 storage.
     if draft_manager is None:
         return {"success": False, "message": "Draft manager error"}
     
     try:
-        # 1. Hapus Foto di R2 (Prefix-based search)
+        # 1. Delete Photos in R2
         prefix_r2 = f"{FOLDER_FOTO_SURVEY}{idpel}/"
         r2_objects = list_r2_objects(prefix_r2)
         
@@ -599,10 +608,10 @@ def delete_survey_data_full(idpel: str):
             delete_r2_object(obj['key'])
             deleted_count += 1
         
-        # 2. Hapus Data Draft di Spreadsheet _DRAFT
+        # 2. Delete Draft Data
         res = draft_manager.delete_draft_survey(SPREADSHEET_ID, idpel)
         
-        # 3. Kosongkan Tanggal Survey di Spreadsheet Utama
+        # 3. Clear Survey Date in Main Sheet
         update_tanggal_survey(SPREADSHEET_ID, GID, idpel, "")
         
         if res["success"]:
@@ -616,7 +625,7 @@ def delete_survey_data_full(idpel: str):
 
 @st.dialog("Lihat Foto Survey", width="large")
 def show_foto_survey_dialog(foto_list, nama, idpel):
-    # Preview survey photos with R2 download/delete buttons and Drive support
+    # Display gallery of survey photos with download and delete options.
     st.markdown(f"**Foto Survey:** {nama} ({idpel})")
     st.markdown(f"**Jumlah Foto:** {len(foto_list)}")
     st.markdown("---")
@@ -636,12 +645,9 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
                     foto_name = foto.get('name', f'Foto {idx+1}')
                     raw_link = foto.get('url') or foto.get('link') or '#'
                     
-                    # Clean UI: Filename acts as the link
                     st.markdown(f"**[{foto_name}]({raw_link})**")
                     
-                    # Display logic: Drive vs R2
                     if 'r2.dev' in raw_link or 'cloudflarestorage' in raw_link:
-                        # R2 Logic: Show Link + Download Button (Fallback)
                         object_key = f"{FOLDER_FOTO_SURVEY}{idpel}/{foto_name}"
                         img_bytes = fetch_r2_image_bytes(object_key)
                         
@@ -659,25 +665,20 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
                                     use_container_width=True
                                 )
                             with c2:
-                                # Tombol Hapus Foto Individu
                                 if st.button("Hapus", key=f"del_foto_survey_{idx}_{idpel}", type="primary", use_container_width=True):
                                     if draft_manager is None:
                                         st.error("Draft manager tidak tersedia.")
                                     else:
-                                        # 1. Hapus Fisik di R2
                                         del_res = delete_r2_object(object_key)
                                         
                                         if del_res["success"]:
-                                            # 2. Sinkronisasi Data Draft (PENTING)
                                             draft = draft_manager.load_single_draft(SPREADSHEET_ID, idpel)
                                             if draft["found"]:
                                                 data = draft["data"]
                                                 current_photos = data.get('foto_survey', [])
                                                 
-                                                # Filter foto yang tidak dihapus
                                                 updated_photos = [p for p in current_photos if p.get('name') != foto_name]
                                                 
-                                                # Simpan ulang draft dengan list foto yang sudah diupdate
                                                 save_res = draft_manager.save_draft_survey(
                                                     spreadsheet_id=SPREADSHEET_ID,
                                                     idpel=idpel,
@@ -705,10 +706,9 @@ def show_foto_survey_dialog(foto_list, nama, idpel):
 
                         else:
                             st.warning("Gagal memuat gambar dari R2.")
-                            st.image(raw_link, use_container_width=True) # Fallback
+                            st.image(raw_link, use_container_width=True) 
                             
                     else:
-                        # Drive Logic: Link + Thumbnail preview
                         try:
                             display_url = raw_link
                             if 'drive.google.com' in raw_link:
@@ -851,7 +851,7 @@ else:
     st.info("Silakan gunakan pencarian untuk menemukan pelanggan lain")
 
 def extract_id(opt: str) -> str:
-    # Helper to extract ID from dropdown format
+    # Helper to extract ID from dropdown format.
     if not opt or opt == "- Pilih ID Pelanggan -":
         return ""
     if " (" in opt:
@@ -1027,7 +1027,6 @@ if st.button("Simpan", type="primary", use_container_width=True):
                     st.error(result['message'])
                 else:
                     try:
-                        # Update tanggal survey saat simpan
                         survey_result = update_tanggal_survey(
                             SPREADSHEET_ID, GID, idpel_selected, datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                         )
@@ -1061,14 +1060,26 @@ st.markdown("## Data Survey yang Sudah Tersimpan")
 if not HAVE_DRAFT_MANAGER or draft_manager is None:
     st.warning("Draft manager tidak tersedia. Tidak bisa menampilkan data tersimpan.")
 else:
-    col_reload, col_search = st.columns([1, 3])
+    col_tools_1, col_tools_2, col_tools_3 = st.columns([1, 1.5, 2.5])
     
-    with col_reload:
-        if st.button("Refresh Data", use_container_width=True):
+    with col_tools_1:
+        if st.button("Refresh Data", use_container_width=True, key="refresh_drafts"):
             st.cache_data.clear()
             st.rerun()
+            
+    with col_tools_2:
+        if st.button("Sync ke Sheet5 (Kolektif)", use_container_width=True, type="secondary", help="Update data Sheet5 dengan seluruh data survey yang tersimpan"):
+            with st.spinner("Sedang sinkronisasi data ke Sheet5..."):
+                try:
+                    res = draft_manager.sync_to_sheet5(SPREADSHEET_ID, "Sheet5")
+                    if res["success"]:
+                        st.success(res["message"])
+                    else:
+                        st.error(res["message"])
+                except Exception as e:
+                    st.error(f"Error: {e}")
     
-    with col_search:
+    with col_tools_3:
         search_draft = st.text_input(
             "Cari ID Pelanggan",
             placeholder="Ketik ID Pelanggan untuk mencari...",
