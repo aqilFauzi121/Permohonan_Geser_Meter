@@ -403,6 +403,11 @@ def show_preview_dialog(barang_dipilih, meta_data):
             
             now = now_jakarta().strftime("%Y%m%d_%H%M")
             safe_name = str(nama_only).replace("/", "-").replace("\\", "-")
+            
+            # --- FIX: Truncate Sheet Name to max 50 chars to avoid API Error ---
+            if len(safe_name) > 50:
+                safe_name = safe_name[:50].strip() + "..."
+                
             title_vendor = f"REKAP {safe_name} - {now}_Vendor"
             title_pelanggan = f"REKAP {safe_name} - {now}_Pelanggan"
             
@@ -851,7 +856,7 @@ else:
     st.info("Silakan gunakan pencarian untuk menemukan pelanggan lain")
 
 def extract_id(opt: str) -> str:
-    # Helper to extract ID from dropdown format.
+    # Helper to extract ID from dropdown format
     if not opt or opt == "- Pilih ID Pelanggan -":
         return ""
     if " (" in opt:
@@ -1027,6 +1032,7 @@ if st.button("Simpan", type="primary", use_container_width=True):
                     st.error(result['message'])
                 else:
                     try:
+                        # Update tanggal survey saat simpan
                         survey_result = update_tanggal_survey(
                             SPREADSHEET_ID, GID, idpel_selected, datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                         )
@@ -1060,6 +1066,8 @@ st.markdown("## Data Survey yang Sudah Tersimpan")
 if not HAVE_DRAFT_MANAGER or draft_manager is None:
     st.warning("Draft manager tidak tersedia. Tidak bisa menampilkan data tersimpan.")
 else:
+    # --- UPDATE: TOMBOL SYNC SHEET5 ---
+    # Menempatkan tombol "Sync ke Sheet5" di baris yang sama dengan tombol refresh
     col_tools_1, col_tools_2, col_tools_3 = st.columns([1, 1.5, 2.5])
     
     with col_tools_1:
@@ -1071,7 +1079,7 @@ else:
         if st.button("Sync ke Rekap_Material (Kolektif)", use_container_width=True, type="secondary", help="Update data Rekap_Material dengan seluruh data survey yang tersimpan"):
             with st.spinner("Sedang sinkronisasi data ke Rekap_Material..."):
                 try:
-                    res = draft_manager.sync_to_Rekap_Material(SPREADSHEET_ID, "Rekap_Material")
+                    res = draft_manager.sync_to_sheet5(SPREADSHEET_ID, "Rekap_Material")
                     if res["success"]:
                         st.success(res["message"])
                     else:

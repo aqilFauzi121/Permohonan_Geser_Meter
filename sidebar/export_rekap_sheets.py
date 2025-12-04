@@ -13,7 +13,7 @@ except Exception:
     def now_jakarta():
         return datetime.utcnow() + timedelta(hours=7)
 
-KEEP_LATEST_TABS = 40
+KEEP_LATEST_TABS = 50
 _RE_REKAP = re.compile(r"^REKAP\s+.+?\s*-\s*(\d{8}[_-]\d{4})_(Vendor|Pelanggan)$")
 
 def _parse_dt_from_title(title: str) -> Optional[datetime]:
