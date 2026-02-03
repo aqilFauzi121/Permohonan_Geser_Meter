@@ -1,81 +1,88 @@
 # Aplikasi Permohonan Geser Meter - PLN ULP Dinoyo
 
-Aplikasi berbasis **Streamlit** untuk mengefisiensikan alur kerja petugas dalam menangani permohonan geser meter dari pelanggan PLN ULP Dinoyo.
+Aplikasi web untuk pencatatan dan pengelolaan permohonan geser meter di PLN ULP Dinoyo. Dibangun pakai Streamlit + Google Sheets.
 
-🔗 **Live Demo:** [permohonan-geser-meter.streamlit.app](https://permohonan-geser-meter.streamlit.app/)
+🔗 **Live:** [permohonan-geser-meter.streamlit.app](https://permohonan-geser-meter.streamlit.app/)
 
 ---
 
-## 📊 Alur Kerja Sistem
+## Kenapa Aplikasi Ini Dibuat?
 
-### 1️⃣ Pengisian Permohonan oleh Pelanggan
-Pelanggan mengisi data yang dibutuhkan untuk permohonan geser meter melalui **Google Form** yang disediakan. Data otomatis masuk ke Google Spreadsheet (Form Response).
+Sebelumnya, pencatatan survey dan eksekusi geser meter masih dilakukan manual oleh petugas lapangan. Masalahnya:
 
-### 2️⃣ Survey Lapangan oleh Petugas
-Petugas lapangan melakukan survey ke lokasi ID Pelanggan yang bersangkutan. Setelah survey selesai, petugas mengisi:
-- **Barang-barang yang dibutuhkan** (kuantitas material)
-- **Foto hasil survey**
+- **Data material sering tercecer** — catatan kertas hilang atau tidak terbaca
+- **Rekapitulasi lambat** — harus input ulang dari catatan lapangan ke spreadsheet
+- **Susah tracking** — tidak jelas mana yang sudah di-survey, mana yang sudah dieksekusi
+
+Aplikasi ini dibuat supaya petugas bisa langsung input data dari HP di lapangan, dan data langsung masuk ke sistem pusat. Tidak perlu catat manual lagi.
+
+---
+
+## Alur Kerja
+
+### 1. Pelanggan Isi Form
+Pelanggan isi data permohonan lewat Google Form. Data masuk ke Google Spreadsheet.
+
+### 2. Survey Lapangan
+Petugas survey ke lokasi pelanggan. Selesai survey, buka website lalu isi:
+- Kuantitas barang yang dibutuhkan
+- Foto hasil survey
 
 ![Halaman Input Barang & Survey](assets/screenshot_proses.png)
 
-### 3️⃣ Simpan Data Survey
-Setelah semua data terisi, petugas menekan tombol **Simpan**. Sistem otomatis menyimpan data ke bagian *"Data Survey yang Sudah Tersimpan"*.
+### 3. Simpan Data
+Klik **Simpan**. Data masuk ke bagian *"Data Survey yang Sudah Tersimpan"*.
 
 ![Input Kuantitas Barang](assets/screenshot_input_barang.png)
 
-### 4️⃣ Export Rekap ke Sheets
-Petugas memilih ID Pelanggan yang ingin di-export. Sistem akan menampilkan preview 2 rekapan:
-- **Rekap untuk Pelanggan** - detail material dan biaya
-- **Rekap Harga untuk Vendor** - kalkulasi harga vendor
+### 4. Export Rekap
+Pilih ID Pelanggan, lalu export. Sistem generate 2 rekap:
+- **Rekap Pelanggan** — rincian material + biaya
+- **Rekap Vendor** — kalkulasi harga vendor
 
-Tabel di-copy dari template yang sudah memiliki formula perhitungan pada kolom Material, Jasa, dan Total.
+Data di-copy dari template yang sudah ada formula untuk kolom Material, Jasa, dan Total.
 
-### 5️⃣ Update Tanggal Survey Otomatis
-Setelah export, sistem otomatis mengisi **Kolom Tanggal Survey** pada Google Spreadsheet dengan format `DD/MM/YYYY HH:MM:SS`.
+### 5. Tanggal Survey Otomatis Terisi
+Setelah export, kolom **Tanggal Survey** di spreadsheet otomatis terisi (`DD/MM/YYYY HH:MM:SS`).
 
-### 6️⃣ Proses Administrasi
-Petugas administrasi memproses data dan menekan tombol **Sync To Rekap_Material** untuk sinkronisasi data.
+### 6. Proses Admin
+Admin klik **Sync To Rekap_Material** untuk sinkronisasi.
 
-### 7️⃣ Eksekusi Lapangan
-Setelah diproses, petugas lapangan melakukan eksekusi ke alamat pelanggan. Kemudian mengisi **Dokumentasi Eksekusi** di menu Eksekusi:
-- Pilih ID Pelanggan yang sudah dieksekusi
-- Upload foto dokumentasi bukti pengerjaan
+### 7. Eksekusi Lapangan
+Petugas eksekusi ke alamat pelanggan. Setelah selesai, buka menu **Eksekusi** di website:
+- Pilih ID Pelanggan
+- Upload foto bukti pengerjaan
 
 ![Halaman Eksekusi](assets/screenshot_eksekusi.png)
 
-### 8️⃣ Update Tanggal Eksekusi Otomatis
-Sistem otomatis mengisi **Tanggal Eksekusi** pada Google Spreadsheet dengan format `DD/MM/YYYY`.
+### 8. Tanggal Eksekusi Otomatis Terisi
+Kolom **Tanggal Eksekusi** di spreadsheet otomatis terisi (`DD/MM/YYYY`).
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-| Teknologi | Kegunaan |
-|-----------|----------|
-| **Streamlit** | Framework web aplikasi |
-| **Google Sheets API** | Database & penyimpanan data |
-| **Google Drive API** | Penyimpanan foto |
-| **Cloudflare R2** | Object storage untuk upload foto |
-| **Python** | Backend logic |
+- **Streamlit** — framework web
+- **Google Sheets API** — database utama
+- **Google Drive API** — simpan foto
+- **Cloudflare R2** — upload foto survey/eksekusi
+- **Python**
 
 ---
 
-## 🚀 Menjalankan Aplikasi
+## Cara Jalankan
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Jalankan aplikasi
 streamlit run app.py
 ```
 
 ---
 
-## 👨‍💻 Pengembang
+## Pengembang
 
-**Universitas Brawijaya** - PLN ULP Dinoyo
+Dibuat oleh mahasiswa **Universitas Brawijaya** untuk PLN ULP Dinoyo.
 
-## 📄 Lisensi
+---
 
-Proprietary - PLN Indonesia
+*© PLN Indonesia*
